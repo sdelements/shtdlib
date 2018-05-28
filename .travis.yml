@@ -1,2 +1,3 @@
+language: bash
 script:
-- shellcheck */**/*.sh
+  - bash -c 'shopt -s globstar; shellcheck **/*.{sh,bash}'
