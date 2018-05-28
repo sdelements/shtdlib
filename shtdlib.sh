@@ -13,9 +13,7 @@
 # herein are proprietary to SD Elements Incorporated
 # and its suppliers and may be covered by U.S., Canadian and other Patents,
 # patents in process, and are protected by trade secret or copyright law.
-# Dissemination of this information or reproduction of this material
-# is strictly forbidden unless prior written permission is obtained
-# from SD Elements Inc..
+#
 
 # If there is no TTY then it's not interactive
 if ! [[ -t 1 ]]; then
