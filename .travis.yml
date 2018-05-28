@@ -1,2 +1,2 @@
 script:
-- shellcheck *.sh
+- shellcheck */**/*.sh
