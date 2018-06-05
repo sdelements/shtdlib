@@ -664,7 +664,7 @@ function wait_for_file {
 #  - second param: timeout (optional, default 10 sec)
 #  - third param: sleep interval (optional, default 1 sec)
 function wait_for_success {
-    local command="${1}"
+    local command="${1:-false}"
     local timeout="${2:-10}"
     local sleep_interval="${3:-1}"
     local max_count=$((timeout/sleep_interval))
