@@ -651,7 +651,7 @@ function wait_for_file {
     local count=0
     while [ ! -f "${file_name}" ]; do
         (( count++ ))
-        if [ ${count} -ge ${max_count} ] ; then
+        if [ ${count} -ge ${max_count} ]; then
             break
         else
             sleep "${sleep_interval}"
@@ -671,7 +671,7 @@ function wait_for_success {
     local count=0
     while ! ${command}; do
         (( count++ ))
-        if [ ${count} -ge ${max_count} ] ; then
+        if [ ${count} -ge ${max_count} ]; then
             return 1
         else
             sleep "${sleep_interval}"
