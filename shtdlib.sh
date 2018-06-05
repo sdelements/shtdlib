@@ -231,7 +231,7 @@ if [ -z "${HOME}" ]; then
 fi
 
 # Set username not available (unattended run)
-if [ -z "${USER}" ]; then
+if [ -z "${USER:-}" ]; then
     export USER="$(whoami)"
 fi
 
@@ -639,21 +639,42 @@ function resolve_srv_name {
     fi
 }
 
-# Wait for file to exists, first parameter is filename,
-# second is optional and is time in seconds (default 5 sec)
-# third is optional and is the interval in seconds
+# Wait for file to exists
+#  - first param: filename,
+#  - second param: timeout (optional, default 5 sec)
+#  - third param: sleep interval (optional, default 1 sec)
 function wait_for_file {
     local file_name="${1}"
-    local seconds="${2:-5}"
-    local check_interval="${3:-1}"
-    local max_count=$((seconds*check_interval))
+    local timeout="${2:-5}"
+    local sleep_interval="${3:-1}"
+    local max_count=$((timeout/sleep_interval))
     local count=0
-    while [ ! -f "${file_name}" ] ; do
+    while [ ! -f "${file_name}" ]; do
         (( count++ ))
         if [ ${count} -ge ${max_count} ] ; then
             break
         else
-            sleep "${check_interval}"
+            sleep "${sleep_interval}"
+        fi
+    done
+}
+
+# Wait for a command to return a 0 exit status
+#  - first param: command
+#  - second param: timeout (optional, default 10 sec)
+#  - third param: sleep interval (optional, default 1 sec)
+function wait_for_success {
+    local command="${1}"
+    local timeout="${2:-10}"
+    local sleep_interval="${3:-1}"
+    local max_count=$((timeout/sleep_interval))
+    local count=0
+    while ! ${command}; do
+        (( count++ ))
+        if [ ${count} -ge ${max_count} ] ; then
+            return 1
+        else
+            sleep "${sleep_interval}"
         fi
     done
 }
