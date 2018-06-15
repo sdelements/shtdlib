@@ -1524,6 +1524,30 @@ function load_config()
     done < "${config_file}";
 }
 
+# Make sure symlink exists and points to the correct target, will remove
+# symlinks pointing to other locations or do nothing if it's correct.
+function ln_sf {
+    target_path="${1}"
+    link_path="${2}"
+    assert test -e "${target_path}"
+    debug 10 "Creating symlink at ${2} pointing to ${1}"
+    if [ -L "${link_path}" ] ; then
+        current_target="$(readlink ${link_path})"
+        if [ "${current_target}" != "${target_path}" ] ; then
+            debug 6 "Removing existing symlink: ${link_path}"
+            rm -f "${link_path}"
+        else
+            debug 6 "Current symlink at ${link_path} already points to ${target_path}"
+            return 0
+        fi
+    elif [ -e "${link_path}" ]; then
+        color_echo red "Found filesystem object at: ${link_path} but it's not a symlink, fatal error, exiting!"
+        exit_on_fail
+    fi
+    # Create symlink
+    ln -s "${target_path}" "${link_path}"
+}
+
 function test_stdlib()
 {
     color_echo green "Testing stdlib functions"
