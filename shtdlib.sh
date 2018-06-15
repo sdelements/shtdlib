@@ -1552,6 +1552,7 @@ function ln_sf {
     fi
     # Create symlink
     ln -s "${target_path}" "${link_path}"
+    debug 10 "Successfully created symlink"
 }
 
 function test_stdlib()
