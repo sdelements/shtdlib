@@ -1527,6 +1527,12 @@ function load_config()
 # Make sure symlink exists and points to the correct target, will remove
 # symlinks pointing to other locations or do nothing if it's correct.
 function ln_sf {
+    # Check for the minimum number of arguments
+    if [ ${#@} -lt 2 ]; then
+        color_echo red "Called 'ln_sf' with less than 2 arguments."
+        exit_on_fail
+    fi
+
     target_path="${1}"
     link_path="${2}"
     assert test -e "${target_path}"
