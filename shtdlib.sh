@@ -300,14 +300,16 @@ function on_exit {
         color_echo red "Last command did not complete successfully" >&2
     fi
 
-    debug 10 "Received SIGEXIT, ${#on_exit[@]:-} items to clean up."
-    if [ ${#on_exit[@]:-} -gt 0 ]; then
-        for item in "${on_exit[@]}"; do
-            if [ -n "${item}" ] ; then
-                debug 10 "Executing cleanup statement on exit: ${item}"
-                $(${item})
-            fi
-        done
+    if [ -n "${on_exit:-}" ] ; then
+        debug 10 "Received SIGEXIT, ${#on_exit[@]:-} items to clean up."
+        if [ ${#on_exit[@]:-} -gt 0 ]; then
+            for item in "${on_exit[@]}"; do
+                if [ -n "${item}" ] ; then
+                    debug 10 "Executing cleanup statement on exit: ${item}"
+                    $(${item})
+                fi
+            done
+        fi
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
     # Be a nice Unix citizen and propagate the signal
