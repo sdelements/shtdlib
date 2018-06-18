@@ -25,7 +25,7 @@ interactive="${interactive:-true}"
 # Create which -s alias (whichs), same as POSIX: -s
 # No output, just return 0 if all of the executables are found, or 1 if some were not found.
 function whichs {
-    which "${*}" >> /dev/null
+    command -v "${*}" >> /dev/null
 }
 
 # Set strict mode only for non-interactive (see bash tab completion bug):
@@ -89,13 +89,13 @@ elif [ "${os_family}" == 'Debian' ]; then
         minor_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $2}')"
         os_name="$(grep DISTRIB_ID /etc/lsb-release | awk -F= '{print $2}')"
     else
-        major_version="$(cat /etc/debian_version | awk -F. '{print $1}')"
-        minor_version="$(cat /etc/debian_version | awk -F. '{print $2}')"
+        major_version="$(awk -F. '{print $1}' /etc/debian_version)"
+        minor_version="$(awk -F. '{print $2}' /etc/debian_version)"
         os_name='debian'
     fi
 fi
 
-local_ip_addresses="$((which ip > /dev/null && ip -4 addr show || which ifconig > /dev/null && ifconfig || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
 
 # Color Constants
 black='\e[0;30m'
@@ -165,7 +165,7 @@ function readlink_m {
     elif [ -e "${new_path[0]}" ] ; then
         echo "${new_path[0]}"
         return 0
-    elif which -s realpath ; then
+    elif command -v realpath ; then
         realpath "${args[0]}"
         return 0
     else
