@@ -318,14 +318,16 @@ function on_exit {
 }
 
 function on_break {
-    color_echo red "Break signal received, unexpected exit, ${#on_break[@]:-} items to clean up."
-    if [ ${#on_break[@]:-} -gt 0 ]; then
-        for item in "${on_break[@]}"; do
-            if [ -n "${item}" ] ; then
-                color_echo red "Executing cleanup statement on break: ${item}"
-                $(${item})
-            fi
-        done
+    if [ -n "${on_break:-}" ] ; then
+        color_echo red "Break signal received, unexpected exit, ${#on_break[@]:-} items to clean up."
+        if [ ${#on_break[@]:-} -gt 0 ]; then
+            for item in "${on_break[@]}"; do
+                if [ -n "${item}" ] ; then
+                    color_echo red "Executing cleanup statement on break: ${item}"
+                    $(${item})
+                fi
+            done
+        fi
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - ${1}
