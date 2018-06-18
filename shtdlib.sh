@@ -300,14 +300,16 @@ function on_exit {
         color_echo red "Last command did not complete successfully" >&2
     fi
 
-    debug 10 "Received SIGEXIT, ${#on_exit[@]:-} items to clean up."
-    if [ ${#on_exit[@]:-} -gt 0 ]; then
-        for item in "${on_exit[@]}"; do
-            if [ -n "${item}" ] ; then
-                debug 10 "Executing cleanup statement on exit: ${item}"
-                $(${item})
-            fi
-        done
+    if [ -n "${on_exit:-}" ] ; then
+        debug 10 "Received SIGEXIT, ${#on_exit[@]} items to clean up."
+        if [ ${#on_exit[@]} -gt 0 ]; then
+            for item in "${on_exit[@]}"; do
+                if [ -n "${item}" ] ; then
+                    debug 10 "Executing cleanup statement on exit: ${item}"
+                    $(${item})
+                fi
+            done
+        fi
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
     # Be a nice Unix citizen and propagate the signal
@@ -316,14 +318,16 @@ function on_exit {
 }
 
 function on_break {
-    color_echo red "Break signal received, unexpected exit, ${#on_break[@]:-} items to clean up."
-    if [ ${#on_break[@]:-} -gt 0 ]; then
-        for item in "${on_break[@]}"; do
-            if [ -n "${item}" ] ; then
-                color_echo red "Executing cleanup statement on break: ${item}"
-                $(${item})
-            fi
-        done
+    if [ -n "${on_break:-}" ] ; then
+        color_echo red "Break signal received, unexpected exit, ${#on_break[@]} items to clean up."
+        if [ ${#on_break[@]} -gt 0 ]; then
+            for item in "${on_break[@]}"; do
+                if [ -n "${item}" ] ; then
+                    color_echo red "Executing cleanup statement on break: ${item}"
+                    $(${item})
+                fi
+            done
+        fi
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - ${1}
