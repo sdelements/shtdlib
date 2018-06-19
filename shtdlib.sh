@@ -22,6 +22,12 @@ fi
 # Default is interactive mode unless already set
 interactive="${interactive:-true}"
 
+# Create which -s alias (whichs), same as POSIX: -s
+# No output, just return 0 if all of the executables are found, or 1 if some were not found.
+function whichs {
+    command -v "${*}" >> /dev/null
+}
+
 # Set strict mode only for non-interactive (see bash tab completion bug):
 # https://github.com/scop/bash-completion/issues/44
 # https://bugzilla.redhat.com/show_bug.cgi?id=1055784
@@ -78,9 +84,15 @@ if [ "${os_family}" == 'RedHat' ]; then
         os_name='redhat';
     fi
 elif [ "${os_family}" == 'Debian' ]; then
-    major_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $1}')"
-    minor_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $2}')"
-    os_name="$(grep DISTRIB_ID /etc/lsb-release | awk -F= '{print $2}')"
+    if [ -e '/etc/lsb-release' ] ; then
+        major_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $1}')"
+        minor_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $2}')"
+        os_name="$(grep DISTRIB_ID /etc/lsb-release | awk -F= '{print $2}')"
+    else
+        major_version="$(awk -F. '{print $1}' /etc/debian_version)"
+        minor_version="$(awk -F. '{print $2}' /etc/debian_version)"
+        os_name='debian'
+    fi
 fi
 
 local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
@@ -152,6 +164,9 @@ function readlink_m {
         readlink_m "${new_path[@]}"
     elif [ -e "${new_path[0]}" ] ; then
         echo "${new_path[0]}"
+        return 0
+    elif command -v realpath ; then
+        realpath "${args[0]}"
         return 0
     else
         debug 10 "Failed to resolve path: ${new_path[*]}"
@@ -483,6 +498,8 @@ function extract {
     else
         if [ ${verbosity} -ge 10 ]; then
             local tar_verb_flag="--verbose"
+        else
+            local tar_verb_flag=''
         fi
         if [ -f "${1}" ] && [ -d "${2}" ]; then
             case "${1}" in
@@ -503,7 +520,7 @@ function extract {
                 *.tar.gz.gpg)   ${priv_esc_cmd}gpg -q -o - --decrypt ${1} | tar xvz -C ${2} ${tar_verb_flag};;
                 *)           color_echo red "${1} is not a known compression format" ;;
             esac
-            extract_trailing_arguments=("${@:3}")
+            extract_trailing_arguments=("${@:3}:-")
             if [ -n "${extract_trailing_arguments}" ] ; then
                 if [ -f ${2}/${extract_trailing_arguments} ] ; then
                     extract "$(find ${2}/${extract_trailing_arguments})" "${2}"
@@ -1279,6 +1296,9 @@ function create_relative_archive {
     local arguments=("${@}")
     local source_elements=("${arguments[@]:1}")
     local transformations=()
+    local archive_operation="${archive_operation:-create}"
+    assert in_array "${archive_operation}" 'create' 'append' 'update'
+
 
     local verbose_flag=''
     if [ ${verbosity} -ge 5 ]; then
@@ -1297,7 +1317,7 @@ function create_relative_archive {
     done
 
     # shellcheck disable=SC2068
-    tar ${transformations[@]} ${verbose_flag} -c --exclude='Puppetfile' --exclude-vcs -C "${run_dir}" -f "${archive_path}" ${source_elements[@]} || exit_on_fail
+    tar ${transformations[@]} ${verbose_flag} --${archive_operation} --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
 }
 
 # Given a filename it will sign the file with the default key
