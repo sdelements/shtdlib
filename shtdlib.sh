@@ -95,7 +95,13 @@ elif [ "${os_family}" == 'Debian' ]; then
     fi
 fi
 
-local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+if command -v ip; then
+    local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+elif command -v ifconfig; then
+    local_ip_addresses="$(ifconfig | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+else
+    local_ip_addresses=''
+fi
 
 # Color Constants
 black='\e[0;30m'
