@@ -232,6 +232,7 @@ run_dir="${run_dir:-$(dirname ${script_full_path})}"
 # Allows clear assert syntax
 function assert {
   debug 10 "Assertion made: ${*}"
+  # shellcheck disable=SC2068
   if ! ${@} ; then
     color_echo red "Assertion failed: '${1}'"
     exit_on_fail
