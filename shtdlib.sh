@@ -231,7 +231,8 @@ run_dir="${run_dir:-$(dirname ${script_full_path})}"
 
 # Allows clear assert syntax
 function assert {
-  if [ ! ${1} ] ; then
+  debug 10 "Assertion made: ${*}"
+  if ! ${@} ; then
     color_echo red "Assertion failed: '${1}'"
     exit_on_fail
   fi
@@ -1579,14 +1580,14 @@ function ln_sf {
     debug 10 "Successfully created symlink"
 }
 
-function test_stdlib()
+function test_shtdlib()
 {
-    color_echo green "Testing stdlib functions"
+    color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
     color_echo cyan "Local IPs are:"
     for ip in ${local_ip_addresses} ; do
-        color_echo cyan "\t${ip}"
+        color_echo cyan "${ip}"
     done
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
@@ -1597,9 +1598,13 @@ function test_stdlib()
     color_echo magenta "Magenta"
     color_echo cyan "Cyan"
     color_echo blank "Blank"
+    assert true
+    assert whichs ls
+    assert [ 0 -eq 0 ]
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     assert in_array 'a' "${shtdlib_test_array[*]}" && color_echo cyan "\'a\' is in \'${shtdlib_test_array[*]}\'"
+    orig_verbosity="${verbosity:-1}"
     verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
@@ -1608,6 +1613,7 @@ function test_stdlib()
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
+    verbosity="${old_verbosity}"
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
