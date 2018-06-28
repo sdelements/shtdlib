@@ -95,7 +95,8 @@ elif [ "${os_family}" == 'Debian' ]; then
     fi
 fi
 
-local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+# Store local IP addresses (not localhost)
+local_ip_addresses="$(((whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
 
 # Color Constants
 black='\e[0;30m'
