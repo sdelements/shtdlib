@@ -122,7 +122,7 @@ function in_array {
 # Takes a variable name and sets it to the second parameter
 # if it's not already been set use debug if it's available
 function init_variable {
-    debug 9 "init_variable is depricated, use variable=${variable:-value} instead"
+    debug 9 "init_variable is deprecated, use variable=${variable:-value} instead"
     # shellcheck disable=SC2086
     export $1=${!1:-${2:-}}
 }
