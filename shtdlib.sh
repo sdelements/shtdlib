@@ -1580,6 +1580,7 @@ function ln_sf {
     debug 10 "Successfully created symlink"
 }
 
+# Unit tests
 function test_stdlib()
 {
     color_echo green "Testing stdlib functions"
@@ -1616,3 +1617,8 @@ function test_stdlib()
     finalize_path '$HOME/test'
     finalize_path '\tmp'
 }
+
+# Test bash version
+if compare_versions "${BASH_VERSION}" 4 ; then
+    debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
+fi
