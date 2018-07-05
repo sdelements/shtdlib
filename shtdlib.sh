@@ -95,7 +95,8 @@ elif [ "${os_family}" == 'Debian' ]; then
     fi
 fi
 
-local_ip_addresses="$(ip -4 addr show | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
+# Store local IP addresses (not localhost)
+local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
 
 # Color Constants
 export black='\e[0;30m'
@@ -1573,7 +1574,8 @@ function ln_sf {
     debug 10 "Successfully created symlink"
 }
 
-function test_shtdlib()
+# Unit tests
+function test_stdlib()
 {
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
@@ -1633,3 +1635,8 @@ function test_shtdlib()
     # Test resolving domain names
     assert [ "$(resolve_domain_name example.com)" == '93.184.216.34' ]
 }
+
+# Test bash version
+if compare_versions "${BASH_VERSION}" 4 ; then
+    debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
+fi
