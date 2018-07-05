@@ -133,7 +133,6 @@ verbosity="${verbosity:-1}"
 # Colored echo
 # takes color and message as parameters, valid colors are listed in the constants section
 function color_echo {
-    #eval color=\$$1
     printf "${!1}%s${blank}\\n" "${2}"
 }
 
