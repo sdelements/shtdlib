@@ -234,7 +234,7 @@ function assert {
   debug 10 "Assertion made: ${*}"
   # shellcheck disable=SC2068
   if ! ${@} ; then
-    color_echo red "Assertion failed: '${1}'"
+    color_echo red "Assertion failed: '${*}'"
     exit_on_fail
   fi
 }
@@ -1539,8 +1539,8 @@ function load_config()
     shift
     while read -r line; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
-            setting_name="$(echo ${line} | awk --field-separator='=' '{print $1}' | sed --expression 's/^[[:space:]]*//' --expression 's/[[:space:]]*$//')"
-            setting_value="$(echo ${line} | cut --fields=1 --delimiter='=' --complement | sed --expression 's/^[[:space:]]*//' --expression 's/[[:space:]]*$//')"
+            setting_name="$(echo ${line} | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            setting_value="$(echo ${line} | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
             if echo "${@}" | grep -q "${setting_name}" ; then
                 export ${setting_name}="${setting_value}"
@@ -1614,11 +1614,22 @@ function test_shtdlib()
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
-    verbosity="${old_verbosity}"
+    verbosity="${orig_verbosity}"
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
     finalize_path './'
     finalize_path '$HOME/test'
     finalize_path '\tmp'
+
+    # Test safe loading of config parameters
+    tmp_file="$(mktemp)"
+    add_on_sig "rm -f ${tmp_file}"
+    test_key='TEST_KEY'
+    test_value='test value moretest -f /somepath ./morepath \/ping ${}$() -- __'
+    # shellcheck disable=SC2153
+    echo "${test_key}=${test_value}" > "${tmp_file}"
+    load_config "${tmp_file}" 'TEST_KEY'
+    test "'${TEST_KEY}'" == "'${test_value}'" || exit_on_fail
+
 }
