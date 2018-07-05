@@ -824,12 +824,12 @@ function copy_file {
         set_file_perm_owner "${source}" "${owner_group}" "${perm}"
         if [ -f "${source}" ] ; then
             debug 10 "Found file ${source}"
-            if ${force_overwrite:-false} ; then
+            if "${force_overwrite:-false}" ; then
                 debug 10 "Copying with forced overwrite"
                 rsync_flags="${rsync_base_flags} --force"
                 #rsync ${rsync_flags} "${1}" "${2}"
                 cp -pf "${source}" "${dest}" || exit_on_fail
-            elif ${interactive} ; then
+            elif "${interactive}" ; then
                 debug 10 "Copying in interactive mode"
                 rsync_flags="${rsync_base_flags}"
                 #rsync ${rsync_flags} "${1}" "${2}"
@@ -850,10 +850,10 @@ function copy_file {
         debug 10 "Found globbing pattern in ${1}"
         # Make sure permissions and owner are OK
         set_file_perm_owner "${source}" "${owner_group}" "${perm}"
-        if ${force_overwrite:-false} ; then
+        if "${force_overwrite:-false}" ; then
             debug 10 "Copying with forced overwrite"
             cp -pf ${source} "${dest}" || exit_on_fail
-        elif ${interactive} ; then
+        elif "${interactive}" ; then
             debug 10 "Copying in interactive mode"
             cp -pi ${source} "${dest}" || exit_on_fail
         else
@@ -888,10 +888,10 @@ function copy_dir {
         set_dir_perm_owner "${source}" "${owner_group}" "${file_perm}" "${dir_perm}"
         if [ -d "${source}" ] ; then
             debug 10 "Found directory ${source}"
-            if ${force_overwrite:-false} ; then
+            if "${force_overwrite:-false}" ; then
                 debug 10 "Copying with forced overwrite"
                 cp -Rpf "${source}" "${dest}" || exit_on_fail
-            elif ${interactive} ; then
+            elif "${interactive}" ; then
                 debug 10 "Copying in interactive mode"
                 cp -Rpi "${source}" "${dest}" || exit_on_fail
             else
@@ -907,10 +907,10 @@ function copy_dir {
     elif [ -n "$(find ${find_directory} -maxdepth 1 -name ${find_pattern} -type f -print -quit)" ] ; then
         debug 10 "Found globbing pattern in ${source}"
         set_dir_perm_owner "${source}" "${owner_group}" "${file_perm}" "${dir_perm}"
-        if ${force_overwrite:-false} ; then
+        if "${force_overwrite:-false}" ; then
             debug 10 "Copying with forced overwrite"
             cp -Rpf ${source} "${dest}" || exit_on_fail
-        elif ${interactive} ; then
+        elif "${interactive}" ; then
             debug 10 "Copying in interactive mode"
             cp -Rpi ${source} "${dest}" || exit_on_fail
         else
