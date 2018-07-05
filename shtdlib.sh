@@ -99,16 +99,16 @@ fi
 local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
 
 # Color Constants
-black='\e[0;30m'
-red='\e[0;31m'
-green='\e[0;32m'
-yellow='\e[0;33m'
-blue='\e[0;34m'
-magenta='\e[0;35m'
-purple="${magenta}" # Alias
-cyan='\e[0;36m'
-white='\e[0;37m'
-blank='\e[0m' # No Color
+export black='\e[0;30m'
+export red='\e[0;31m'
+export green='\e[0;32m'
+export yellow='\e[0;33m'
+export blue='\e[0;34m'
+export magenta='\e[0;35m'
+export purple="${magenta}" # Alias
+export cyan='\e[0;36m'
+export white='\e[0;37m'
+export blank='\e[0m' # No Color
 
 # Check if a variable is in array
 # First parameter is the variable, rest is the array
@@ -123,6 +123,8 @@ function in_array {
 # Takes a variable name and sets it to the second parameter
 # if it's not already been set use debug if it's available
 function init_variable {
+    debug 9 "init_variable is deprecated, use variable=${variable:-value} instead"
+    # shellcheck disable=SC2086
     export $1=${!1:-${2:-}}
 }
 
@@ -132,17 +134,16 @@ verbosity="${verbosity:-1}"
 # Colored echo
 # takes color and message as parameters, valid colors are listed in the constants section
 function color_echo {
-   eval color=\$$1
-   printf "${color}%s${blank}\n" "${2}"
+    printf "${!1}%s${blank}\\n" "${2}"
 }
 
 # Debug method for verbose debugging
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
-    if [ ${verbosity} -ge ${1} ]; then
+    if [ "${verbosity}" -ge "${1}" ]; then
         if [ -e "${init_tty}" ] ; then
-            color_echo yellow "${@:2}" > ${init_tty}
+            color_echo yellow "${@:2}" > "${init_tty}"
         else
             color_echo yellow "${@:2}"
         fi
@@ -154,10 +155,10 @@ function readlink_m {
     debug 10 "readlink_m called with: ${*}"
     args=( ${@} )
     if [ "${#args[@]}" -gt 1 ] ; then
-        base_path="$(dirname ${args[0]})"
+        base_path="$(dirname "${args[0]}")"
         new_path="${base_path}/${args[1]}"
     else
-        new_path="$(stat -f "%N %Y" ${args[0]})"
+        new_path="$(stat -f "%N %Y" "${args[0]}")"
     fi
     new_path=( ${new_path} )
     debug 10 "Processed path is: ${new_path[*]}"
@@ -186,7 +187,7 @@ function readlink_m {
 # also position
 function compare_versions {
     versions=(${@})
-    return "$(($(printf "%s\n" "${versions[@]}" | sort --version-sort | grep ${versions[0]} --line-number | awk -F: '{print $1}')-1))"
+    return "$(($(printf "%s\\n" "${versions[@]}" | sort --version-sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
 }
 
 # Converts relative paths to full paths, ignores invalid paths
@@ -206,7 +207,7 @@ function finalize_path {
         if [ "${os_family}" == 'MacOSX' ] ; then
             full_path=$(readlink_m "${path}")
         else
-            full_path="$(readlink -m ${path})"
+            full_path="$(readlink -m "${path}")"
         fi
         debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
         if [ -n "${full_path}" ]; then
@@ -228,12 +229,14 @@ if [ ! -f "${script_full_path}" ] ; then
 fi
 
 finalize_path script_full_path
-run_dir="${run_dir:-$(dirname ${script_full_path})}"
+run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
 # Allows clear assert syntax
 function assert {
-  if [ ! ${1} ] ; then
-    color_echo red "Assertion failed: '${1}'"
+  debug 10 "Assertion made: ${*}"
+  # shellcheck disable=SC2068
+  if ! ${@} ; then
+    color_echo red "Assertion failed: '${*}'"
     exit_on_fail
   fi
 }
@@ -241,14 +244,16 @@ function assert {
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
 
-# Set home directory if not available (unattended run)
-if [ -z "${HOME}" ]; then
-    export HOME="$(getent passwd ${USER} | awk -F: '{print $6}')"
-fi
-
 # Set username not available (unattended run)
 if [ -z "${USER:-}" ]; then
-    export USER="$(whoami)"
+    USER="$(whoami)"
+    export USER
+fi
+
+# Set home directory if not available (unattended run)
+if [ -z "${HOME:-}" ]; then
+    HOME="$(getent passwd "${USER}" | awk -F: '{print $6}')"
+    export HOME
 fi
 
 # Find the best way to escalate our privileges
@@ -322,6 +327,7 @@ function on_exit {
             for item in "${on_exit[@]}"; do
                 if [ -n "${item}" ] ; then
                     debug 10 "Executing cleanup statement on exit: ${item}"
+                    # shellcheck disable=SC2091
                     $(${item})
                 fi
             done
@@ -340,14 +346,15 @@ function on_break {
             for item in "${on_break[@]}"; do
                 if [ -n "${item}" ] ; then
                     color_echo red "Executing cleanup statement on break: ${item}"
+                    # shellcheck disable=SC2091
                     $(${item})
                 fi
             done
         fi
     fi
     # Be a nice Unix citizen and propagate the signal
-    trap - ${1}
-    kill -s ${1} ${$}
+    trap - "${1}"
+    kill -s "${1}" "${$}"
 }
 
 function add_on_exit {
@@ -430,7 +437,7 @@ function create_secure_tmp {
     dir=${3:-}
     if [ -d "${dir}" ]; then
         if [ "${os_type}" == 'Linux' ]; then
-            secure_tmp_object="$(mktemp ${type_flag} --tmpdir=${dir} -q )"
+            secure_tmp_object="$(mktemp ${type_flag} --tmpdir="${dir}" -q )"
         else
             TMPDIR="${3}"
             secure_tmp_object="$(mktemp -t tmp -q)"
@@ -443,8 +450,8 @@ function create_secure_tmp {
         fi
     else
         if [ "${2}" == 'file' ] ; then
-            mkdir -p -m 0700 "$(dirname ${dir})" || exit_on_fail
-            install -m 0600 /dev/null ${dir} || exit_on_fail
+            mkdir -p -m 0700 "$(dirname "${dir}")" || exit_on_fail
+            install -m 0600 /dev/null "${dir}" || exit_on_fail
         elif [ "${2}" == 'dir' ] ; then
             mkdir -p -m 0700 "${dir}" || exit_on_fail
         fi
@@ -454,10 +461,11 @@ function create_secure_tmp {
     if [ ${?} -ne 0 ]; then
         exit_on_fail "${secure_tmp_object}"
     fi
-    chmod 0700 ${secure_tmp_object} || exit_on_fail
+    chmod 0700 "${secure_tmp_object}" || exit_on_fail
     umask "${original_umask}" || exit_on_fail
 
     # Store temp file/dir path into the caller's variable
+    # shellcheck disable=SC2086
     eval ${_RETVAL}="'$secure_tmp_object'"
 
     if ${cleanup}; then
@@ -488,43 +496,43 @@ function extract {
             dest_flag_place=''
         fi
         tmp_archive="$(mktemp)"
-        case "$(tee ${tmp_archive} &> /dev/null && file ${tmp_archive} --brief --mime-type)" in
-            application/x-tar)  tar xf ${tmp_archive} ${dest_flag_place};;
-            application/x-gzip) tar zxf ${tmp_archive} ${dest_flag_place};;
-            application/pgp)    gpg -q -o - --decrypt ${tmp_archive} | extract "${@:1}";;
+        case "$(tee "${tmp_archive}" &> /dev/null && file "${tmp_archive}" --brief --mime-type)" in
+            application/x-tar)  tar xf "${tmp_archive}" ${dest_flag_place};;
+            application/x-gzip) tar zxf "${tmp_archive}" ${dest_flag_place};;
+            application/pgp)    gpg -q -o - --decrypt "${tmp_archive}" | extract "${@:1}";;
             *) color_echo red "Unsupported mime type for extracting file from stdin" ;;
         esac
         debug 10 "Removing temporary archive: ${tmp_archive}"
         rm -f "${tmp_archive}"
     else
-        if [ ${verbosity} -ge 10 ]; then
+        if [ "${verbosity}" -ge 10 ]; then
             local tar_verb_flag="--verbose"
         else
             local tar_verb_flag=''
         fi
         if [ -f "${1}" ] && [ -d "${2}" ]; then
             case "${1}" in
-                *.tar.bz2)   ${priv_esc_cmd} tar xvjf      ${1} -C ${2}   ${tar_verb_flag};;
-                *.tar.gz)    ${priv_esc_cmd} tar xvzf      ${1} -C ${2}   ${tar_verb_flag};;
-                *.bz2)       ${priv_esc_cmd} bunzip2 -dc   ${1} > ${2}   ;;
-                *.rar)       ${priv_esc_cmd} unrar x       ${1} ${2}     ;;
-                *.gz)        ${priv_esc_cmd} gunzip -c     ${1} > ${2}   ;;
-                *.tar)       ${priv_esc_cmd} tar xvf       ${1} -C ${2}   ${tar_verb_flag};;
-                *.pyball)    ${priv_esc_cmd} tar xvf       ${1} -C ${2}   ${tar_verb_flag};;
-                *.tbz2)      ${priv_esc_cmd} tar xvjf      ${1} -C ${2}   ${tar_verb_flag};;
-                *.tgz)       ${priv_esc_cmd} tar xvzf      ${1} -C ${2}   ${tar_verb_flag};;
-                *.zip)       ${priv_esc_cmd} unzip         ${1} -d ${2}  ;;
-                *.Z)         ${priv_esc_cmd} uncompress -c ${1} > ${2}   ;;
-                *.7z)        ${priv_esc_cmd} 7za x -y      ${1} -o${2} ;;
-                *.tar.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt ${1} | tar xv -C ${2} ${tar_verb_flag};;
-                *.tgz.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt ${1} | tar xvz -C ${2} ${tar_verb_flag};;
-                *.tar.gz.gpg)   ${priv_esc_cmd}gpg -q -o - --decrypt ${1} | tar xvz -C ${2} ${tar_verb_flag};;
+                *.tar.bz2)   ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.tar.gz)    ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.bz2)       ${priv_esc_cmd} bunzip2 -dc   "${1}" > "${2}"   ;;
+                *.rar)       ${priv_esc_cmd} unrar x       "${1}" "${2}"     ;;
+                *.gz)        ${priv_esc_cmd} gunzip -c     "${1}" > "${2}"   ;;
+                *.tar)       ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.pyball)    ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.tbz2)      ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.tgz)       ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.zip)       ${priv_esc_cmd} unzip         "${1}" -d "${2}"  ;;
+                *.Z)         ${priv_esc_cmd} uncompress -c "${1}" > "${2}"   ;;
+                *.7z)        ${priv_esc_cmd} 7za x -y      "${1}" -o"${2}" ;;
+                *.tar.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt "${1}" | tar xv -C "${2}" ${tar_verb_flag};;
+                *.tgz.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt "${1}" | tar xvz -C "${2}" ${tar_verb_flag};;
+                *.tar.gz.gpg)   ${priv_esc_cmd}gpg -q -o - --decrypt "${1}" | tar xvz -C "${2}" ${tar_verb_flag};;
                 *)           color_echo red "${1} is not a known compression format" ;;
             esac
             extract_trailing_arguments=("${@:3}:-")
             if [ -n "${extract_trailing_arguments}" ] ; then
-                if [ -f ${2}/${extract_trailing_arguments} ] ; then
-                    extract "$(find ${2}/${extract_trailing_arguments})" "${2}"
+                if [ -f "${2}"/"${extract_trailing_arguments}" ] ; then
+                    extract "$(find "${2}/${extract_trailing_arguments}")" "${2}"
                     extract_trailing_arguments=("${extract_trailing_arguments[@]:1}")
                 fi
             else
@@ -553,9 +561,9 @@ function extract_exec_archive {
         REPLY="y"
     fi
     if [[ ${REPLY} =~ ^[Yy]$ ]]; then
-        bash_num_lines="$(awk '/^__ARCHIVE_FOLLOWS__/ { print NR + 1; exit 0; }' ${script_full_path})"
+        bash_num_lines="$(awk '/^__ARCHIVE_FOLLOWS__/ { print NR + 1; exit 0; }' "${script_full_path}")"
         debug 10 "Extracting embedded tar archive to ${tmp_archive_dir}"
-        tail -n +${bash_num_lines} ${script_full_path} | extract - ${tmp_archive_dir} || exit_on_fail
+        tail -n +"${bash_num_lines}" "${script_full_path}" | extract - "${tmp_archive_dir}" || exit_on_fail
     else
         color_echo red "Archive extraction cancelled by user!"
         exit -1
@@ -578,14 +586,38 @@ else
     running_as_exec_archive=false
 fi
 
+# This is a sample print usage function, it should be overwritten by scripts
+# which import this library
+function print_usage {
+cat << EOF
+usage: ${0} options
+
+This is an example usage help function
+
+OPTIONS:
+   -x      Create an example bundle, optionally accepts a release, defaults to acme release
+   -a      Apply an example bundle
+   -s      Sign a bundle being created and force validation when it's applied
+   -p      Create a patch, the patch only includes acme updates and does not update the release
+   -h      Show this message
+   -v      Print ${0} version and exit
+
+Examples:
+${0} -c # Create a bundle with "acme"  version
+${0} -sc 1.0.1 # Create and sign an acme bundle with version 1.0.1
+${0} -a # Apply example update, default action when run from archive
+
+Version: ${version:-${shtdlib_version}}
+EOF
+}
+
 # Exits with error if a required argument was not provided
 # Takes two arguments, first is the argument value and the second
 # is the error message if argument is not set
 # This is mostly irrelevant when running in strict mode
 function required_argument {
     print_usage_function="${3:-print_usage}"
-    eval argument=\$${1}
-    if [ "${argument}" == "" ]; then
+    if [ -z "${!1}" ]; then
         ${print_usage_function}
         color_echo red "${2}"
         exit -1
@@ -615,7 +647,7 @@ function parse_opt_arg {
     debug 10 "Option index is: ${OPTIND}"
     next_arg="${parameter_array[$((OPTIND - 1))]:-}"
     debug 10 "Optarg index is: ${OPTIND} and next argument is: ${next_arg}"
-    if [ "$(echo ${next_arg} | grep -v '^-')" != "" ]; then
+    if [ "$(echo "${next_arg}" | grep -v '^-')" != "" ]; then
             debug 10 "Found optional argument and setting ${1}=\"${next_arg}\""
             eval "${1}=\"${next_arg}\""
             # Skip over the optional value so getopts does not stop processing
@@ -635,7 +667,7 @@ function parse_opt_arg {
 
 # Resolve DNS name, returns IP if successful, otherwise name and error code
 function resolve_domain_name {
-    lookup_result="$(getent ahosts \"${1}\" | awk '{ print $1 }'| sort -u)"
+    lookup_result="$( (whichs getent && getent ahosts "${1}" | awk '{ print $1 }'| sort -u) || (whichs dscacheutil && dscacheutil -q host -a name "${1}" | grep ip_address | awk '{ print $2 }'| sort -u ))"
     if [ -z "${lookup_result}" ]; then
         echo "${1}"
         return 1
@@ -651,10 +683,10 @@ function resolve_srv_name {
     domain="${2}"
     proto="_${3:-TCP}"
     debug 10 "${service} ${domain} ${proto}"
-    mapfile -t lookup_result <<< "$(host -t SRV ${service}.${proto}.${domain} ; echo -e ${?} )"
+    mapfile -t lookup_result <<< "$(host -t SRV "${service}.${proto}.${domain}" ; echo -e "${?}" )"
     if test "${lookup_result[@]: -1}" -eq 0 ; then
         for line in "${lookup_result[@]}"; do
-            echo $line
+            echo "${line}"
         done
     else
         debug 2 "Failed to resolve ${service} ${domain} ${proto}"
@@ -713,13 +745,14 @@ function set_file_perm_owner {
         rsync_base_flags="${rsync_base_flags} --usermap=${2}"
         # Workaround when running from setuid and no supplemental groups are
         # loaded automatically
+        # shellcheck disable=SC2091
         if [ "${EUID}" -ne '0' ] && $(echo "${2}" | grep -q ':') ; then
-            group="$(echo ${user_group:-} | awk -F: '{print $2}')"
+            group="$(echo "${user_group:-}" | awk -F: '{print $2}')"
             if [[ "${group}" != '' ]]; then
                 sg "${group}" -c "chown '${2}' '${1}'" || exit_on_fail
             fi
         else
-            chown "${2}" ${1} || exit_on_fail
+            chown "${2}" "${1}" || exit_on_fail
         fi
     fi
     if [ -z "${3}" ] ; then
@@ -727,7 +760,7 @@ function set_file_perm_owner {
     else
         debug 10 "Changing permissions on ${1} to ${3}"
         rsync_base_flags="${rsync_base_flags} --chmod=${3}"
-        chmod "${3}" ${1} || exit_on_fail
+        chmod "${3}" "${1}" || exit_on_fail
     fi
 }
 
@@ -743,13 +776,14 @@ function set_dir_perm_owner {
         rsync_base_flags="${rsync_base_flags} --usermap=${2}"
         # Workaround when running from setuid and no supplemental groups are
         # loaded automatically
+        # shellcheck disable=SC2091
         if [ "${EUID}" -ne '0' ] && $(echo "${2}" | grep -q ':') ; then
-            group="$(echo ${user_group:-} | awk -F: '{print $2}')"
+            group="$(echo "${user_group:-}" | awk -F: '{print $2}')"
             if [[ "${group}" != '' ]]; then
                 sg "${group}" -c "chown '${2}' ${1}" || exit_on_fail
             fi
         else
-            chown -R "${2}" ${1} || exit_on_fail
+            chown -R "${2}" "${1}" || exit_on_fail
         fi
     fi
     if [ -z "${3}" ] ; then
@@ -757,13 +791,13 @@ function set_dir_perm_owner {
     else
         debug 10 "Changing permissions recursively on dirs in ${1} to ${3}"
         rsync_base_flags="${rsync_base_flags} --chmod=${3}"
-        find ${1} -type d -exec chmod ${3} {} +
+        find "${1}" -type d -exec chmod "${3}" {} +
     fi
     if [ -n "${4}" ] ; then
         debug 10 "Changing permissions recursively on files in ${1} to ${4}"
         # Figure out how to do this with rsync
         #rsync_base_flags="${rsync_base_flags} --chmod=${4}"
-        find ${1} -type f -exec chmod ${4} {} +
+        find "${1}" -type f -exec chmod "${4}" {} +
     fi
 }
 
@@ -774,28 +808,29 @@ function set_dir_perm_owner {
 # but could be an issue if used in a different way. Third and fourth parameters
 # are optional
 function copy_file {
-    rsync_base_flags="-ltDu  --inplace --backup --backup-dir=\"${backup_dir}\" --keep-dirlinks"
+    rsync_base_flags="-ltDu  --inplace --backup --backup-dir=\"${backup_dir:-${dest}.backup}\" --keep-dirlinks"
     local source="${1}"
     local dest="${2}"
     local owner_group="${3:-}"
     local perm="${4:-}"
     set -f
-    find_directory="$(dirname ${source})"
-    find_pattern="$(basename ${source})"
+    find_directory="$(dirname "${source}")"
+    find_pattern="$(basename "${source}")"
     set +f
     debug 10 "Called copy_file with ${source} ${dest} ${owner_group} ${perm}"
+    # shellcheck disable=SC2086
     if [ -e "${source}" ] ; then
         debug 10 "Filesystem object ${source} exists"
         # Make sure permissions and owner are OK
         set_file_perm_owner "${source}" "${owner_group}" "${perm}"
         if [ -f "${source}" ] ; then
             debug 10 "Found file ${source}"
-            if ${force_overwrite} ; then
+            if "${force_overwrite:-false}" ; then
                 debug 10 "Copying with forced overwrite"
                 rsync_flags="${rsync_base_flags} --force"
                 #rsync ${rsync_flags} "${1}" "${2}"
                 cp -pf "${source}" "${dest}" || exit_on_fail
-            elif ${interactive} ; then
+            elif "${interactive}" ; then
                 debug 10 "Copying in interactive mode"
                 rsync_flags="${rsync_base_flags}"
                 #rsync ${rsync_flags} "${1}" "${2}"
@@ -816,10 +851,10 @@ function copy_file {
         debug 10 "Found globbing pattern in ${1}"
         # Make sure permissions and owner are OK
         set_file_perm_owner "${source}" "${owner_group}" "${perm}"
-        if ${force_overwrite} ; then
+        if "${force_overwrite:-false}" ; then
             debug 10 "Copying with forced overwrite"
             cp -pf ${source} "${dest}" || exit_on_fail
-        elif ${interactive} ; then
+        elif "${interactive}" ; then
             debug 10 "Copying in interactive mode"
             cp -pi ${source} "${dest}" || exit_on_fail
         else
@@ -845,18 +880,19 @@ function copy_dir {
     local file_perm="${4:-}"
     local dir_perm="${5:-}"
     set -f
-    find_directory="$(dirname ${source})"
-    find_pattern="$(basename ${source})"
+    find_directory="$(dirname "${source}")"
+    find_pattern="$(basename "${source}")"
     set +f
+    # shellcheck disable=SC2086
     if [ -e "${source}" ] ; then
         debug 10 "Filesystem object ${source} exists"
         set_dir_perm_owner "${source}" "${owner_group}" "${file_perm}" "${dir_perm}"
         if [ -d "${source}" ] ; then
             debug 10 "Found directory ${source}"
-            if ${force_overwrite} ; then
+            if "${force_overwrite:-false}" ; then
                 debug 10 "Copying with forced overwrite"
                 cp -Rpf "${source}" "${dest}" || exit_on_fail
-            elif ${interactive} ; then
+            elif "${interactive}" ; then
                 debug 10 "Copying in interactive mode"
                 cp -Rpi "${source}" "${dest}" || exit_on_fail
             else
@@ -872,10 +908,10 @@ function copy_dir {
     elif [ -n "$(find ${find_directory} -maxdepth 1 -name ${find_pattern} -type f -print -quit)" ] ; then
         debug 10 "Found globbing pattern in ${source}"
         set_dir_perm_owner "${source}" "${owner_group}" "${file_perm}" "${dir_perm}"
-        if ${force_overwrite} ; then
+        if "${force_overwrite:-false}" ; then
             debug 10 "Copying with forced overwrite"
             cp -Rpf ${source} "${dest}" || exit_on_fail
-        elif ${interactive} ; then
+        elif "${interactive}" ; then
             debug 10 "Copying in interactive mode"
             cp -Rpi ${source} "${dest}" || exit_on_fail
         else
@@ -918,18 +954,18 @@ function create_dir_or_fail {
                 mode_flag=''
             fi
             # Create dir, use sudo/su if required
-            if [ -w "$(dirname ${1})" ] ; then
-                mkdir -p "${1}" ${4}
+            if [ -w "$(dirname "${1}")" ] ; then
+                mkdir -p "${1}" "${4}"
             else
-                ${priv_esc_cmd} mkdir -p "${1}" ${4}
+                ${priv_esc_cmd} mkdir -p "${1}" "${4}"
             fi
             # Change owner if specified
-            if  [ "${2}" != "" ] && [ "$(stat -c '%U' ${1})" != "${2}" ] ; then
+            if  [ "${2}" != "" ] && [ "$(stat -c '%U' "${1}")" != "${2}" ] ; then
                 debug 5 "Changing owner on ${1} to ${2}"
                 ${priv_esc_cmd} chown "${2}" "${1}"
             fi
             # Change group if specified
-            if  [ "${3}" != "" ] && [ "$(stat -c '%G' ${1})" != "${3}" ] ; then
+            if  [ "${3}" != "" ] && [ "$(stat -c '%G' "${1}")" != "${3}" ] ; then
                 debug 5 "Changing group on ${1} to ${3}"
                 ${priv_esc_cmd} chgrp "${3}" "${1}"
             fi
@@ -963,9 +999,9 @@ function load_from_yaml {
 # Returns 0 if package was installed, 1 if package was already installed
 function install_gem {
     original_umask="$(umask)"
-    if [ ${verbosity} -le 5 ]; then
+    if [ "${verbosity}" -le 5 ]; then
         gem_verb_flag='-q'
-    elif [ ${verbosity} -ge 10 ]; then
+    elif [ "${verbosity}" -ge 10 ]; then
         gem_verb_flag='-V'
     else
         gem_verb_flag=''
@@ -990,7 +1026,7 @@ function install_gem {
 
 function validate_hostfile {
     assigned_ip_addresses="$(ip -4 addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
-    ip_address_in_hostfile="$(getent hosts | grep -e "\b$(hostname)\b" | awk '{print $1}')"
+    ip_address_in_hostfile="$(getent hosts | grep -e "\\b$(hostname)\\b" | awk '{print $1}')"
 
     debug 10 "Currently assigned IP addresses: ${assigned_ip_addresses}"
     debug 10 "IP address associated with hostname on hostfile: ${ip_address_in_hostfile}"
@@ -1100,50 +1136,6 @@ function strip_space {
     echo -n "${@}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-
-# Extracts archives
-# First argument is the archive, second is the destination folder
-# Any subsequent arguments are assumed to be embedded archives to try to
-# extract, these will all be normalized into the dest folder
-# Original from http://stackoverflow.com/a/5379222
-declare -a extract_trailing_arguments
-function extract {
-    if [ ${verbosity} -ge 10 ]; then
-        local tar_verb_flag="--verbose"
-    fi
-    if [ -f "${1}" ] && [ -d "${2}" ]; then
-         case "${1}" in
-             *.tar.bz2)   ${priv_esc_cmd} tar xvjf      ${1} -C ${2}   ${tar_verb_flag};;
-             *.tar.gz)    ${priv_esc_cmd} tar xvzf      ${1} -C ${2}   ${tar_verb_flag};;
-             *.bz2)       ${priv_esc_cmd} bunzip2 -dc   ${1} > ${2}   ;;
-             *.rar)       ${priv_esc_cmd} unrar x       ${1} ${2}     ;;
-             *.gz)        ${priv_esc_cmd} gunzip -c     ${1} > ${2}   ;;
-             *.tar)       ${priv_esc_cmd} tar xvf       ${1} -C ${2}   ${tar_verb_flag};;
-             *.pyball)    ${priv_esc_cmd} tar xvf       ${1} -C ${2}   ${tar_verb_flag};;
-             *.tbz2)      ${priv_esc_cmd} tar xvjf      ${1} -C ${2}   ${tar_verb_flag};;
-             *.tgz)       ${priv_esc_cmd} tar xvzf      ${1} -C ${2}   ${tar_verb_flag};;
-             *.zip)       ${priv_esc_cmd} unzip         ${1} -d ${2}  ;;
-             *.Z)         ${priv_esc_cmd} uncompress -c ${1} > ${2}   ;;
-             *.7z)        ${priv_esc_cmd} 7za x -y      ${1} -o${2} ;;
-             *.tar.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt ${1} | tar xv -C ${2} ${tar_verb_flag};;
-             *.tgz.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt ${1} | tar xvz -C ${2} ${tar_verb_flag};;
-             *)           color_echo red "${1} is not a known compression format" ;;
-         esac
-         extract_trailing_arguments=("${@:3}")
-         if [ ${#extract_trailing_arguments[@]} -ne 0 ] ; then
-            if [ -f ${2}/${extract_trailing_arguments[0]} ] ; then
-                extract "$(find ${2}/${extract_trailing_arguments[0]})" "${2}"
-                extract_trailing_arguments=("${extract_trailing_arguments[@]:1}")
-            fi
-         else
-             color_echo cyan "Did not find any embedded archive matching ${extract_trailing_arguments[*]}"
-         fi
-     else
-        color_echo red "'${1}' is not a valid file or '${2}' is not a valid directory"
-        exit_on_fail
-     fi
-}
-
 # Usage
 # This function is used to safely edit files for config parameters, etc
 # This function will return 0 on success or 1 if it fails to change the value
@@ -1178,7 +1170,7 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
             ;;
             'p')
                 # Properly escape control characters in pattern
-                pattern="$(echo ${OPTARG} | sed -e 's/[\/&]/\\\\&/g')"
+                pattern="$(echo "${OPTARG}" | sed -e 's/[\/&]/\\\\&/g')"
                 debug 10 "Pattern set to ${pattern}"
 
                 # If value is not set we set it to pattern for now
@@ -1188,7 +1180,7 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
             ;;
             'v')
                 # Properly escape control characters in new value
-                new_value="$(echo ${OPTARG} | sed -e 's/[\/&]/\\\\&/g')"
+                new_value="$(echo "${OPTARG}" | sed -e 's/[\/&]/\\\\&/g')"
             ;;
             'a')
                 append=true
@@ -1215,7 +1207,7 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
         color_echo red "safe_find_replace requires filename, pattern and value to be provided"
         color_echo magenta "Provided filename: ${filename}"
         color_echo magenta "Provided pattern: ${pattern}"
-        color_echo magenta "Provided value: ${value}"
+        color_echo magenta "Provided value: ${new_value}"
         exit 64
     fi
 
@@ -1234,25 +1226,25 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
     fi
 
     # Count matches
-    num_matches="$(${priv_esc_cmd} grep -c \"${pattern}\" \"${filename}\")"
+    num_matches="$(${priv_esc_cmd} grep -c "${pattern}" "${filename}")"
 
     # Handle replacements
-    if [ "${pattern}" != "" ] && [ ${num_matches} -eq ${req_matches} ]; then
+    if [ -n "${pattern}" ] && [ "${num_matches}" -eq "${req_matches}" ]; then
         ${priv_esc_cmd} sed -i -e 's/'"${pattern}"'/'"${new_value}"'/g' "${filename}"
     # Handle appends
     elif ${append} ; then
         if [ "${ini_section}" != "" ]; then
             ini_section_match="$(${priv_esc_cmd} grep -c \"\[${ini_section}\]\" \"${filename}\")"
-            if [ ${ini_section_match} -lt 1 ]; then
+            if [ "${ini_section_match}" -lt 1 ]; then
                 echo -e '\n['"${ini_section}"']\n' | ${priv_esc_cmd} tee -a "${filename}" > /dev/null
-            elif [ ${ini_section_match} -eq 1 ]; then
+            elif [ "${ini_section_match}" -eq 1 ]; then
                 ${priv_esc_cmd} sed -i -e '/\['"${ini_section}"'\]/{:a;n;/^$/!ba;i'"${new_value}" -e '}' "${filename}"
             else
                 color_echo red "Multiple sections match the INI file section specified: ${ini_section}"
                 exit 1
             fi
         else
-            echo ${new_value} | ${priv_esc_cmd} tee -a ${filename} > /dev/null
+            echo "${new_value}" | ${priv_esc_cmd} tee -a "${filename}" > /dev/null
         fi
     # Handle opportunistic, no error if match not found
     elif ${opportunistic} ; then
@@ -1279,7 +1271,7 @@ function link_ssh_config {
             ${priv_esc_cmd} mkdir -p "/root/.ssh" && sudo chmod 700 "/root/.ssh"
             color_echo green "Copying ${SUDO_USER_HOME}/.ssh/config to /root/.ssh/config for this session"
             color_echo green "Please note that for future/automated r10k runs you might need to make this permanent"
-            ${priv_esc_cmd} cp ${SUDO_USER_HOME}/.ssh/config /root/.ssh/config
+            ${priv_esc_cmd} cp "${SUDO_USER_HOME}/.ssh/config" '/root/.ssh/config'
             ${priv_esc_cmd} chown root "/root/.ssh/config" && ${priv_esc_cmd} chmod 700 "/root/.ssh/config"
             add_on_sig ${priv_esc_cmd} "rm -f /root/.ssh/config"
         fi
@@ -1302,7 +1294,7 @@ function create_relative_archive {
 
 
     local verbose_flag=''
-    if [ ${verbosity} -ge 5 ]; then
+    if [ "${verbosity}" -ge 5 ]; then
         local verbose_flag=' -v'
     fi
     # Iterate this way to avoid whitespace filename bugs
@@ -1318,7 +1310,7 @@ function create_relative_archive {
     done
 
     # shellcheck disable=SC2068
-    tar ${transformations[@]} ${verbose_flag} --${archive_operation} --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
+    tar ${transformations[@]} "${verbose_flag}" "--${archive_operation}" --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
 }
 
 # Given a filename it will sign the file with the default key
@@ -1337,7 +1329,7 @@ function inline_bash_source {
     local inline_dest_file="${2}"
     debug 10 "Inlining file ${inline_source_file} and writing to ${inline_dest_file}"
     declare -a source_file_array
-    mapfile -t source_file_array < ${inline_source_file}
+    mapfile -t source_file_array < "${inline_source_file}"
     declare -a combined_source
     declare -a combined_source_array
     # Iterate this way to avoid whitespace bugs
@@ -1347,7 +1339,7 @@ function inline_bash_source {
         local filename="$(echo "${source_file_array[${i}-1]}" | grep '^source ' | awk '{print $2}')"
         if [ "${filename}" != "" ] ; then
             debug 10 "Found line with source instruction to file: ${filename}"
-            local relative_filename="$(dirname ${inline_source_file})/$(basename ${filename})"
+            local relative_filename="$(dirname "${inline_source_file}")/$(basename "${filename}")"
             if [ -f "${relative_filename}" ] ; then
                 filename="${relative_filename}"
             fi
@@ -1364,10 +1356,11 @@ function inline_bash_source {
                 debug 10 "No previous import of ${filename} found, recursing"
                 # create_secure_tmp will store return data into the first argument
                 create_secure_tmp tmp_out_file 'file'
+                # shellcheck disable=SC2154
                 inline_bash_source "${filename}" "${tmp_out_file}"
                 debug 10 "Mapping inlined tmp file ${tmp_out_file}"
                 mapfile -t sourced_file_array < "${tmp_out_file}"
-                local file_name_no_path="$(basename ${filename})"
+                local file_name_no_path="$(basename "${filename}")"
                 local base_file_name="${file_name_no_path%.*}"
                 local combined_source_array=("${combined_source_array[@]}" \
                     "########## INLINED SOURCE FILE: \"${base_file_name}\" ##########" \
@@ -1394,7 +1387,7 @@ function inline_bash_source {
         printf '%s\n' "${combined_source_array[@]}"
     else
         printf '%s\n' "${combined_source_array[@]}" >> "${inline_dest_file}"
-        chmod --reference=${inline_source_file} ${inline_dest_file}
+        chmod --reference="${inline_source_file}" "${inline_dest_file}"
         debug 10 "Wrote combined source to ${inline_dest_file}"
     fi
 }
@@ -1417,6 +1410,7 @@ function create_exec_archive {
     debug 10 "Creating binary ${binary_path} using ${script_path} and ${archive}"
     # create_secure_tmp will store return data into the first argument
     create_secure_tmp tmp_script_file 'file'
+    # shellcheck disable=SC2154
     inline_bash_source "${script_path}" "${tmp_script_file}"
     debug 10 "Created temporary inlined script file at: ${tmp_script_file}"
     cat "${tmp_script_file}" > "${binary_path}" || exit_on_fail
@@ -1434,17 +1428,17 @@ function slugify {
 # Load default login environment
 function get_env {
     # Load all default settings, including proxy, etc
-    if [ -e "/etc/environment" ]; then
-        debug 10 "Sourcing /etc/environment"
-        source /etc/environment
-    fi
-    if [ -e "/etc/profile" ]; then
-        debug 10 "Sourcing /etc/profile"
-        source /etc/profile
-    fi
-    # Set username if it's not available (unattended run)
-    USER="${USER:-$(whoami)}"
-    HOME="${HOME:-$(getent passwd ${USER} | awk -F: '{print $6}')}"
+    declare -a env_files
+    env_files=('/etc/environment' '/etc/profile')
+    for env_file in "${env_files[@]}"; do
+	if [ -e "${env_file}" ]; then
+	    debug 10 "Sourcing ${env_file}"
+            #shellcheck source=/dev/null
+	    source "${env_file}"
+        else
+	    debug 10 "Env file: ${env_file} not present"
+	fi
+    done
 }
 
 # Pick pidfile location if it's ever needed
@@ -1460,14 +1454,14 @@ fi
 function init_pid() {
     pidfile="${pid_prefix}${1}"
     if [ -f "${pidfile}" ]; then
-        file_size=$(wc -c < "${pidfile}")
-        file_type="$(file -b ${pidfile})"
-        max_file_size=$(cat < /proc/sys/kernel/pid_max | wc -c)
+        file_size="$(wc -c < "${pidfile}")"
+        file_type="$(file -b "${pidfile}")"
+        max_file_size=$(cat < '/proc/sys/kernel/pid_max' | wc -c)
         max_pid=$(cat < /proc/sys/kernel/pid_max)
-        if [ ${file_size} -le ${max_file_size} ] && [ "${file_type}" == 'ASCII text' ]; then
-           pid=$(cat ${pidfile})
-           if [ $(cat ${pidfile}) -le ${max_pid} ]; then
-               if [ $(pgrep -cF ${pidfile}) -eq 1 ]; then
+        if [ "${file_size}" -le "${max_file_size}" ] && [ "${file_type}" == 'ASCII text' ]; then
+           pid="$(cat "${pidfile}")"
+           if [ "${pid}" -le "${max_pid}" ]; then
+               if [ "$(pgrep -cF "${pidfile}")" -eq 1 ]; then
                    color_echo green "Process with PID: ${pid} already running"
                    return 129
                else
@@ -1507,12 +1501,12 @@ function signal() {
     pidfile="${pid_prefix}${1}"
     # Check if first parameter is pidfile or process name/search string
     if init_pid "${1}" > /dev/null || [ ${?} == 129 ]; then
-        other_pids="$(cat ${pidfile})"
+        other_pids="$(cat "${pidfile}")"
     else
-        other_pids="$(pgrep -f -d ' ' ${1})"
+        other_pids="$(pgrep -f -d ' ' "${1}")"
     fi
     if [ "${other_pids}" != "" ]; then
-        kill -s ${2} ${other_pids}
+        kill -s "${2}" ${other_pids}
         color_echo cyan "Signalled ${3} to PID(s): ${other_pids}"
     else
         debug 5 "Unable to find process '${1}' to signal"
@@ -1538,8 +1532,8 @@ function load_config()
     shift
     while read -r line; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
-            setting_name="$(echo ${line} | awk --field-separator='=' '{print $1}' | sed --expression 's/^[[:space:]]*//' --expression 's/[[:space:]]*$//')"
-            setting_value="$(echo ${line} | cut --fields=1 --delimiter='=' --complement | sed --expression 's/^[[:space:]]*//' --expression 's/[[:space:]]*$//')"
+            setting_name="$(echo "${line}" | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
             if echo "${@}" | grep -q "${setting_name}" ; then
                 export ${setting_name}="${setting_value}"
@@ -1563,7 +1557,7 @@ function ln_sf {
     assert test -e "${target_path}"
     debug 10 "Creating symlink at ${2} pointing to ${1}"
     if [ -L "${link_path}" ] ; then
-        current_target="$(readlink ${link_path})"
+        current_target="$(readlink "${link_path}")"
         if [ "${current_target}" != "${target_path}" ] ; then
             debug 6 "Removing existing symlink: ${link_path}"
             rm -f "${link_path}"
@@ -1583,12 +1577,12 @@ function ln_sf {
 # Unit tests
 function test_stdlib()
 {
-    color_echo green "Testing stdlib functions"
+    color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
     color_echo cyan "Local IPs are:"
     for ip in ${local_ip_addresses} ; do
-        color_echo cyan "\t${ip}"
+        color_echo cyan "${ip}"
     done
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
@@ -1599,9 +1593,13 @@ function test_stdlib()
     color_echo magenta "Magenta"
     color_echo cyan "Cyan"
     color_echo blank "Blank"
+    assert true
+    assert whichs ls
+    assert [ 0 -eq 0 ]
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     assert in_array 'a' "${shtdlib_test_array[*]}" && color_echo cyan "\'a\' is in \'${shtdlib_test_array[*]}\'"
+    orig_verbosity="${verbosity:-1}"
     verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
@@ -1610,12 +1608,32 @@ function test_stdlib()
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
+    verbosity="${orig_verbosity}"
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
     finalize_path './'
     finalize_path '$HOME/test'
     finalize_path '\tmp'
+
+    # Test safe loading of config parameters
+    tmp_file="$(mktemp)"
+    add_on_sig "rm -f ${tmp_file}"
+    test_key='TEST_KEY'
+    test_value='test value moretest -f /somepath ./morepath \/ping ${}$() -- __'
+    echo "${test_key}=${test_value}" > "${tmp_file}"
+    load_config "${tmp_file}" 'TEST_KEY'
+    # shellcheck disable=SC2153
+    test "'${TEST_KEY}'" == "'${test_value}'" || exit_on_fail
+
+    # Test version comparison
+    assert compare_versions '1.1.1 1.2.2test'
+    assert ! compare_versions '1.2.2 1.1.1'
+    assert compare_versions '1.0.0 1.1.1 2.2.2'
+    assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0')" == '4' ]
+
+    # Test resolving domain names
+    assert [ "$(resolve_domain_name example.com)" == '93.184.216.34' ]
 }
 
 # Test bash version
