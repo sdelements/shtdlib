@@ -1,53 +1,28 @@
 #!/bin/bash
-
+#
+# Copyright (c) 2018 SD Elements Inc.
+#
+#  All Rights Reserved.
+#
+# NOTICE:  All information contained herein is, and remains
+# the property of SD Elements Incorporated and its suppliers,
+# if any.  The intellectual and technical concepts contained
+# herein are proprietary to SD Elements Incorporated
+# and its suppliers and may be covered by U.S., Canadian and other Patents,
+# patents in process, and are protected by trade secret or copyright law.
+# Dissemination of this information or reproduction of this material
+# is strictly forbidden unless prior written permission is obtained
+# from SD Elements Inc..
 # Version
+
 version='0.1'
 
 # Set a safe umask
 umask 0077
 
-# Set strict mode
-set -euo pipefail
-
-# Store original tty
-init_tty="$(tty || true)"
-
-# Default verbosity, common levels are 0,1,5,10
-verbosity="${verbosity:-1}"
-
-# Timestamp, the date/time we started
-start_timestamp="$(date +"%Y%m%d%H%M")"
-
-# Color Constants
-export black='\e[0;30m'
-export red='\e[0;31m'
-export green='\e[0;32m'
-export yellow='\e[0;33m'
-export blue='\e[0;34m'
-export magenta='\e[0;35m'
-export purple="${magenta}" # Alias
-export cyan='\e[0;36m'
-export white='\e[0;37m'
-export blank='\e[0m' # No Color
-
-# Colored echo
-# takes color and message as parameters, valid colors are listed in the constants section
-function color_echo {
-    printf "${!1}%s${blank}\\n" "${2}"
-}
-
-# Debug method for verbose debugging
-# Note debug is special because it's safe even in subshells because it bypasses
-# the stdin/stdout and writes directly to the terminal
-function debug {
-    if [ "${verbosity}" -ge "${1}" ]; then
-        if [ -e "${init_tty}" ] ; then
-            color_echo yellow "${@:2}" > "${init_tty}"
-        else
-            color_echo yellow "${@:2}"
-        fi
-    fi
-}
+# Import the standard shell library
+# spellcheck source=../shtdlib.sh
+source "$(dirname "${0}")/../shtdlib.sh"
 
 # Print usage and argument list
 function print_usage {
@@ -74,7 +49,7 @@ man envsubst
 man kill
 
 OPTIONS:
-   -p, --process      Process name to signal if config files change
+   -p, --process                    Process name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
    -h, --help                       Show this message
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
@@ -85,34 +60,6 @@ ${0} /etc /usr/share/doc/ntp.conf -p ntpd # Map /usr/share/doc/ntp.conf to /etc/
 
 Version: ${version:-${shtdlib_version}}
 EOF
-}
-
-# Parse for optional arguments (-f vs. -f optional_argument)
-# Takes variable name as first arg and default value as optional second
-# variable will be initialized in any case for compat with -e
-parameter_array=("${@-()}") # Store all parameters as an array
-function parse_opt_arg {
-    # Pick up optional arguments
-    debug 10 "Parameter Array is: ${parameter_array[*]}"
-    debug 10 "Option index is: ${OPTIND}"
-    next_arg="${parameter_array[$((OPTIND - 1))]:-}"
-    debug 10 "Optarg index is: ${OPTIND} and next argument is: ${next_arg}"
-    if [ "$(echo "${next_arg}" | grep -v '^-')" != "" ]; then
-            debug 10 "Found optional argument and setting ${1}=\"${next_arg}\""
-            eval "${1}=\"${next_arg}\""
-            # Skip over the optional value so getopts does not stop processing
-            (( OPTIND++ ))
-    else
-            if [ "${2}" != '' ]; then
-                debug 10 "Optional argument not found, using default and setting ${1}=\"${2}\""
-                eval "${1}=\"${2}\""
-            else
-                debug 10 "Initializing empty variable ${1}"
-                eval "${1}="
-            fi
-    fi
-    unset next_arg
-    color_echo cyan "Set argument: ${1} to \"${!1}\""
 }
 
 # Parse command line arguments
@@ -139,6 +86,7 @@ function parse_arguments {
         'v'|'verbose')
             parse_opt_arg verbosity '10'
             export verbose=true
+            # shellcheck disable=SC2154
             debug 1 "Set verbosity to: ${verbosity}"
         ;;
         'h'|'help'|'version')    # Help
@@ -169,6 +117,12 @@ process="${process:-}"
 while getopts ":-:p:s:vh" opt; do
     parse_arguments "${opt}"
 done
+debug 10 "Non argument parameters:" "${@##\-*}"
+if [ "${#@}" -lt 2 ] ; then
+    color_echo red "You need to supply at least one source dir/file and a destination directory"
+    print_usage
+    exit 64
+fi
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
@@ -178,7 +132,7 @@ function setup_named_pipe {
 
     # Create a named pipe for each file with same permissions, then
     # set up an inotifywait process to monitor and trigger envsubst
-    mkfifo -m "$(stat -f '%p' "${file}")" -p "${destination}/${file#${path}}"
+    mkfifo -m "$(stat -c '%a' "${file}")" -p "${destination}/${file#${path}}"
 
     # Loop envsubst until the destination or source file no longer exist
     while [ -d "${destination}" ] && [ -f "${file}" ] ; do
@@ -193,15 +147,16 @@ function create_directory_structure {
     local dir="${2}"
     local path="${3}"
     # Create each directory in the mirror with same permissions
-    mkdir -m "$(stat -f '%p' "${dir}")" -p "${destination}/${dir#${path}}"
+    mkdir -m "$(stat -c '%a' "${dir}")" -p "${destination}/${dir#${path}}"
 }
 
 # Mirrors a given path of directories and files to a second path using named
 # pipes and substituting environment variables found in files in realtime
 # Ignores filesystem objects that are neither files or directories
 function mirror_envsubst_path {
+    declare -a sources
     local destination="${1}"
-    local sources=("${1[@]:1}")
+    local sources=("${@:2}")
     if ! [ -d "${destination}" ] ; then
         color_echo red "Destination path: ${destination} is not a directory, exiting!"
         exit 1
@@ -211,16 +166,25 @@ function mirror_envsubst_path {
         mapfile -t directories < <(find "${path}" -type d)
         mapfile -t files < <(find "${path}" -type f)
 
+        # Create directory structure
         for dir in "${directories[@]}"; do
             create_directory_structure "${destination}" "${dir}" "${path}"
         done
 
-        for file in "${files[@]}"; do
+        # Create named pipes and set up cleanup on signals for them
+        for file in "${files[@]:-}"; do
+            add_on_sig "rm -f ${destination}/${file#${path}}"
             setup_named_pipe "${destination}" "${file}" "${path}" &
         done
 
-        # Set up notifications for each path and fork them, register signal
-        # handlers for each as needed
+        # Set up safe cleanup for directory structure (needs to be done in
+        # reverse order to ensure safety of operation without recursive rm
+        local index
+        for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
+            add_on_sig "rmdir ${destination}/${directories[index]#${path}}"
+        done
+
+        # Set up notifications for each path and fork watching
         inotifywait --monitor --recursive --format'%w %f %e' "${path}" | while read -r -a dir_file_events; do
             for event in "${dir_file_events[@]:2}"; do
                 case "${event}" in
@@ -230,7 +194,7 @@ function mirror_envsubst_path {
                     'MODIFY'|'CLOSE_WRITE') # File modified events
                         debug 6 "File modification event on: ${dir_file_events[0:1]} ${event}"
                         if [ -n "${process}" ] ; then
-                            killall -${signal} ${process}
+                            killall -"${signal}" "${process}"
                         fi
                     ;;
                     'MOVED_TO'|'CREATE') # New file events
@@ -239,8 +203,15 @@ function mirror_envsubst_path {
                         setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${path}" &
                     ;;
                     'MOVED_FROM'|'DELETE') # File/Directory deletion events
-                        rm -f  
-                        stop existing process and remove named pipe
+                        fs_object="${dir_file_events[0]}/${dir_file_events[1]}"
+                        mirror_object="${destination}/${fs_object#${path}}"
+                        debug 5 "Filesystem object removed from source, removing from mirror"
+                        debug 5 "Source: ${fs_object} Pipe: ${mirror_object}"
+                        if [ -f "${fs_object}" ] ; then
+                            rm -f "${mirror_object}"
+                        elif [ -d "${fs_object}" ] ; then
+                            rmdir "${mirror_object}"
+                        fi
                     ;;
                     'DELETE_SELF'|'UNMOUNT') # Stop/exit/cleanup events
                         color_echo red "Received fatal event: ${dir_file_events[0:1]} ${event}, exiting!"
@@ -252,19 +223,5 @@ function mirror_envsubst_path {
     done
 }
 
-
-function inotifywait {
-    echo "${@}"
-}
-
-
-inotifywait -mr --timefmt '%d/%m/%y %H:%M' --format '%T %w %f' -e close_write /tmp/test | while read -r date time dir file; do
-    #envsubst <"${file}"
-    #mkfifo
-
-     color_echo red "${date}"
-     color_echo blue "${time}"
-     color_echo cyan "${dir}"
-     color_echo magenta "${file}"
-     color_echo yellow "${start_timestamp}"
-done
+# Call the main mirroring function
+mirror_envsubst_path "${@##\-*}"
