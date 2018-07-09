@@ -196,13 +196,6 @@ function mirror_envsubst_path {
                 create_directory_structure "${destination}" "${dir}" "${full_path}"
             done
 
-            # Set up safe cleanup for directory structure (needs to be done in
-            # reverse order to ensure safety of operation without recursive rm
-            local index
-            for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-                add_on_sig "rmdir ${destination}/${directories[index]#${full_path}}"
-            done
-
         fi
 
         # Create named pipes and set up cleanup on signals for them
@@ -220,15 +213,29 @@ function mirror_envsubst_path {
             done
         fi
 
+        # Set up safe cleanup for directory structure (needs to be done in
+        # reverse order to ensure safety of operation without recursive rm
+        local index
+        for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
+            add_on_sig "rmdir ${destination}/${directories[index]#${full_path}}"
+        done
+
+
         # Set up notifications for each path and fork watching
-        inotifywait --monitor --recursive --format '%w %f %e' "${full_path}" | while read -r -a dir_file_events; do
+        inotifywait --monitor --recursive --format '%w %f %e' "${full_path}"\
+            --event 'modify' --event 'close_write'\
+            --event 'moved_to' --event 'create'\
+            --event 'moved_from' --event 'delete' --event 'move_self'\
+            --event 'delete_self' --event 'unmount'\
+             | while read -r -a dir_file_events; do
             for event in "${dir_file_events[@]:2}"; do
                 case "${event}" in
                     'ACCESS'|'CLOSE_NOWRITE'|'OPEN') #Non events
-                        debug 8 "Non mutable event on: ${dir_file_events[*]0:1} ${event}, ignoring"
+                        color_echo red "Non mutable event on: ${dir_file_events[*]}, this should not happen since we don't subscribe to these"
+                        exit 1
                     ;;
                     'MODIFY'|'CLOSE_WRITE') # File modified events
-                        debug 6 "File modification event on: ${dir_file_events[*]0:1} ${event}"
+                        debug 6 "File modification event on: ${dir_file_events[*]}"
                         if [ -n "${process}" ] ; then
                             killall -"${signal}" "${process}"
                         fi
