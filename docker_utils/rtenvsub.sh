@@ -20,6 +20,9 @@ version='0.1'
 # Set a safe umask
 umask 0077
 
+# Log/Console destination
+console="$(tty || logger || false)"
+
 # Import the standard shell library
 # shellcheck source=../shtdlib.sh
 source "$(dirname "${0}")/../shtdlib.sh"
@@ -85,7 +88,7 @@ function parse_arguments {
             debug 5 "Set signal to: ${signal}"
         ;;
         'o'|'overlay')
-            overlay=true
+            overlay='true'
             debug 5 "Overlay enabled!"
         ;;
         'v'|'verbose')
@@ -137,19 +140,17 @@ if [ "${#@}" -lt 2 ] ; then
 fi
 export signal="${signal:-SIGHUP}"
 export process="${process:-}"
-export overlay="${overlay:false}"
-
+export overlay="${overlay:-'false'}"
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
     local destination="${1}"
-    local file"${2}"
+    local file="${2}"
     local path="${3}"
     debug 10 "Creating named pipe: ${destination}/${file#${path}} with permissions identical to ${file}"
-
     # Create a named pipe for each file with same permissions, then
     # set up an inotifywait process to monitor and trigger envsubst
-    mkfifo -m "$(stat -c '%a' "${file}")" -p "${destination}/${file#${path}}"
+    mkfifo -m "$(stat -c '%a' "${file}")" "${destination}/${file#${path}}"
 
     # Loop envsubst until the destination or source file no longer exist
     while [ -d "${destination}" ] && [ -f "${file}" ] ; do
@@ -181,8 +182,9 @@ function mirror_envsubst_path {
     fi
     # Iterate over each source file/directory, exclude root dir if specified
     for path in "${sources[@]}"; do
-        mapfile -t directories < <(find "${path}" -mindepth 1 -type d -exec readlink -m {} \;)
-        mapfile -t files < <(find "${path}" -type f -exec readlink -m {} \;)
+        full_path="$(readlink -m "${path}")"
+        mapfile -t directories < <(find "${full_path}" -mindepth 1 -type d -exec readlink -m {} \;)
+        mapfile -t files < <(find "${full_path}" -type f -exec readlink -m {} \;)
 
         # Create directory structure, check if destination is empty
         if [ -n "$(ls -A "${destination}")" ] && ! ${overlay} ; then
@@ -191,52 +193,54 @@ function mirror_envsubst_path {
             exit 1
         else
             for dir in "${directories[@]}"; do
-                create_directory_structure "${destination}" "${dir}" "${path}"
+                create_directory_structure "${destination}" "${dir}" "${full_path}"
             done
 
             # Set up safe cleanup for directory structure (needs to be done in
             # reverse order to ensure safety of operation without recursive rm
             local index
             for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-                add_on_sig "rmdir ${destination}/${directories[index]#${path}}"
+                add_on_sig "rmdir ${destination}/${directories[index]#${full_path}}"
             done
 
         fi
 
         # Create named pipes and set up cleanup on signals for them
         if [ -z "${files[*]}" ] ; then
-            color_echo magenta "Destination directory does not contain any files, no pipes created for ${path}!"
+            color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
-                if [ -n "${file}" ] ; then 
-                    add_on_sig "rm -f ${destination}/${file#${path}}"
-                    setup_named_pipe "${destination}" "${file}" "${path}" &
+                if [ -n "${file}" ] ; then
+                    add_on_sig "rm -f ${destination}/${file#${full_path}}"
+                    setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
+                else
+                    color_echo red "EMPTY FILE!"
+                    exit 1
                 fi
             done
         fi
 
-
         # Set up notifications for each path and fork watching
-        inotifywait --monitor --recursive --format'%w %f %e' "${path}" | while read -r -a dir_file_events; do
+        inotifywait --monitor --recursive --format '%w %f %e' "${full_path}" | while read -r -a dir_file_events; do
             for event in "${dir_file_events[@]:2}"; do
                 case "${event}" in
                     'ACCESS'|'CLOSE_NOWRITE'|'OPEN') #Non events
-                        debug 8 "Non mutable event on: ${dir_file_events[0:1]} ${event}, ignoring"
+                        debug 8 "Non mutable event on: ${dir_file_events[*]0:1} ${event}, ignoring"
                     ;;
                     'MODIFY'|'CLOSE_WRITE') # File modified events
-                        debug 6 "File modification event on: ${dir_file_events[0:1]} ${event}"
+                        debug 6 "File modification event on: ${dir_file_events[*]0:1} ${event}"
                         if [ -n "${process}" ] ; then
                             killall -"${signal}" "${process}"
                         fi
                     ;;
                     'MOVED_TO'|'CREATE') # New file events
-                        debug 6 "New file event on: ${dir_file_events[0:1]} ${event}"
-                        create_directory_structure "${destination}" "${dir_file_events[0]}" "${path}"
-                        setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${path}" &
+                        debug 6 "New file event on: ${dir_file_events[*]0:1} ${event}"
+                        create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
+                        setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
                     ;;
-                    'MOVED_FROM'|'DELETE') # File/Directory deletion events
+                    'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
                         fs_object="${dir_file_events[0]}/${dir_file_events[1]}"
-                        mirror_object="${destination}/${fs_object#${path}}"
+                        mirror_object="${destination}/${fs_object#${full_path}}"
                         debug 5 "Filesystem object removed from source, removing from mirror"
                         debug 5 "Source: ${fs_object} Pipe: ${mirror_object}"
                         if [ -f "${fs_object}" ] ; then
