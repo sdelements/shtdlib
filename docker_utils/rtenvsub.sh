@@ -21,7 +21,7 @@ version='0.1'
 umask 0077
 
 # Import the standard shell library
-# spellcheck source=../shtdlib.sh
+# shellcheck source=../shtdlib.sh
 source "$(dirname "${0}")/../shtdlib.sh"
 
 # Print usage and argument list
@@ -51,6 +51,7 @@ man kill
 OPTIONS:
    -p, --process                    Process name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
+   -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
    -h, --help                       Show this message
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
 
@@ -83,6 +84,10 @@ function parse_arguments {
             signal="${OPTARG}"
             debug 5 "Set signal to: ${signal}"
         ;;
+        'o'|'overlay')
+            overlay=true
+            debug 5 "Overlay enabled!"
+        ;;
         'v'|'verbose')
             parse_opt_arg verbosity '10'
             export verbose=true
@@ -110,25 +115,37 @@ function parse_arguments {
         ;;
     esac
 }
-signal="${signal:-SIGHUP}"
-process="${process:-}"
 
 # Process arguments/parameters/options
-while getopts ":-:p:s:vh" opt; do
+while getopts ":-:p:s:ovh" opt; do
     parse_arguments "${opt}"
 done
-debug 10 "Non argument parameters:" "${@##\-*}"
+#non_argument_parameters=( "${@##\-*}" )
+declare -a non_argument_parameters
+remaining_parameters=( "${@##\-*}" )
+for i in "${remaining_parameters[@]}"; do
+    if [ -n "${i}" ] ; then
+        non_argument_parameters+=( "${i}" )
+    fi
+done
+debug 10 "Non-argument parameters:" "${non_argument_parameters[*]}"
+
 if [ "${#@}" -lt 2 ] ; then
     color_echo red "You need to supply at least one source dir/file and a destination directory"
     print_usage
     exit 64
 fi
+export signal="${signal:-SIGHUP}"
+export process="${process:-}"
+export overlay="${overlay:false}"
+
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
     local destination="${1}"
     local file"${2}"
     local path="${3}"
+    debug 10 "Creating named pipe: ${destination}/${file#${path}} with permissions identical to ${file}"
 
     # Create a named pipe for each file with same permissions, then
     # set up an inotifywait process to monitor and trigger envsubst
@@ -146,6 +163,7 @@ function create_directory_structure {
     local destination="${1}"
     local dir="${2}"
     local path="${3}"
+    debug 10 "Creating directory ${destination}/${dir#${path}} with permissions identical to ${dir}"
     # Create each directory in the mirror with same permissions
     mkdir -m "$(stat -c '%a' "${dir}")" -p "${destination}/${dir#${path}}"
 }
@@ -155,34 +173,48 @@ function create_directory_structure {
 # Ignores filesystem objects that are neither files or directories
 function mirror_envsubst_path {
     declare -a sources
-    local destination="${1}"
-    local sources=("${@:2}")
+    destination="$(readlink -m "${1}")"
+    sources=("${@:2}")
     if ! [ -d "${destination}" ] ; then
         color_echo red "Destination path: ${destination} is not a directory, exiting!"
         exit 1
     fi
-    # Iterate over each source file/directory
+    # Iterate over each source file/directory, exclude root dir if specified
     for path in "${sources[@]}"; do
-        mapfile -t directories < <(find "${path}" -type d)
-        mapfile -t files < <(find "${path}" -type f)
+        mapfile -t directories < <(find "${path}" -mindepth 1 -type d -exec readlink -m {} \;)
+        mapfile -t files < <(find "${path}" -type f -exec readlink -m {} \;)
 
-        # Create directory structure
-        for dir in "${directories[@]}"; do
-            create_directory_structure "${destination}" "${dir}" "${path}"
-        done
+        # Create directory structure, check if destination is empty
+        if [ -n "$(ls -A "${destination}")" ] && ! ${overlay} ; then
+            color_echo red "Destination directory is not empty, if you still want to overlay into it please use the -o/--overlay option"
+            print_usage
+            exit 1
+        else
+            for dir in "${directories[@]}"; do
+                create_directory_structure "${destination}" "${dir}" "${path}"
+            done
+
+            # Set up safe cleanup for directory structure (needs to be done in
+            # reverse order to ensure safety of operation without recursive rm
+            local index
+            for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
+                add_on_sig "rmdir ${destination}/${directories[index]#${path}}"
+            done
+
+        fi
 
         # Create named pipes and set up cleanup on signals for them
-        for file in "${files[@]:-}"; do
-            add_on_sig "rm -f ${destination}/${file#${path}}"
-            setup_named_pipe "${destination}" "${file}" "${path}" &
-        done
+        if [ -z "${files[*]}" ] ; then
+            color_echo magenta "Destination directory does not contain any files, no pipes created for ${path}!"
+        else
+            for file in "${files[@]:-}"; do
+                if [ -n "${file}" ] ; then 
+                    add_on_sig "rm -f ${destination}/${file#${path}}"
+                    setup_named_pipe "${destination}" "${file}" "${path}" &
+                fi
+            done
+        fi
 
-        # Set up safe cleanup for directory structure (needs to be done in
-        # reverse order to ensure safety of operation without recursive rm
-        local index
-        for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-            add_on_sig "rmdir ${destination}/${directories[index]#${path}}"
-        done
 
         # Set up notifications for each path and fork watching
         inotifywait --monitor --recursive --format'%w %f %e' "${path}" | while read -r -a dir_file_events; do
@@ -224,4 +256,4 @@ function mirror_envsubst_path {
 }
 
 # Call the main mirroring function
-mirror_envsubst_path "${@##\-*}"
+mirror_envsubst_path "${non_argument_parameters[@]}"

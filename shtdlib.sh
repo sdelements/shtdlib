@@ -132,9 +132,9 @@ function init_variable {
 verbosity="${verbosity:-1}"
 
 # Colored echo
-# takes color and message as parameters, valid colors are listed in the constants section
+# takes color and message(s) as parameters, valid colors are listed in the constants section
 function color_echo {
-    printf "${!1}%s${blank}\\n" "${2}"
+    printf "${!1}%s${blank}\\n" "${*:2}"
 }
 
 # Debug method for verbose debugging
@@ -143,9 +143,9 @@ function color_echo {
 function debug {
     if [ "${verbosity}" -ge "${1}" ]; then
         if [ -e "${init_tty}" ] ; then
-            color_echo yellow "${@:2}" > "${init_tty}"
+            color_echo yellow "${*:2}" > "${init_tty}"
         else
-            color_echo yellow "${@:2}"
+            color_echo yellow "${*:2}"
         fi
     fi
 }
