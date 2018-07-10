@@ -235,7 +235,7 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 function assert {
   debug 10 "Assertion made: ${*}"
   # shellcheck disable=SC2068
-  if ! ${@} ; then
+  if ! "${@}" ; then
     color_echo red "Assertion failed: '${*}'"
     exit_on_fail
   fi
@@ -1575,7 +1575,7 @@ function ln_sf {
 }
 
 # Unit tests
-function test_stdlib()
+function test_shtdlib()
 {
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"

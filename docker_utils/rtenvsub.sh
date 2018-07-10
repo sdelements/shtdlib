@@ -57,6 +57,7 @@ OPTIONS:
    -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
    -h, --help                       Show this message
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
+   -t, --test                       Run unit tests
 
 Examples:
 ${0} /etc/nginx /usr/share/doc/nginx # Recursively map all files and directories from /usr/share/doc/nginx to /etc/nginx
@@ -101,6 +102,9 @@ function parse_arguments {
             print_usage
             exit 0
         ;;
+        't'|'test')    # Unit tests
+            run_unit_tests='true'
+        ;;
         '?')    # Invalid option specified
             color_echo red "Invalid option '${OPTARG}'"
             print_usage
@@ -120,7 +124,7 @@ function parse_arguments {
 }
 
 # Process arguments/parameters/options
-while getopts ":-:p:s:ovh" opt; do
+while getopts ":-:p:s:otvh" opt; do
     parse_arguments "${opt}"
 done
 #non_argument_parameters=( "${@##\-*}" )
@@ -133,7 +137,7 @@ for i in "${remaining_parameters[@]}"; do
 done
 debug 10 "Non-argument parameters:" "${non_argument_parameters[*]}"
 
-if [ "${#@}" -lt 2 ] ; then
+if [ "${#@}" -lt 2 ] && ! "${run_unit_tests}" ; then
     color_echo red "You need to supply at least one source dir/file and a destination directory"
     print_usage
     exit 64
@@ -266,5 +270,52 @@ function mirror_envsubst_path {
     done
 }
 
+# Unit tests
+# shellcheck disable=SC2154
+function unit_tests {
+    debug 5 "Running unit tests!"
+    # Basic setup
+    create_secure_tmp tmp_source_test_dir 'dir'
+    create_secure_tmp tmp_dest_test_dir 'dir'
+    create_secure_tmp tmp_source_test_file 'file' "${tmp_source_test_dir}"
+
+    # Test setting up a named pipe
+    setup_named_pipe "${tmp_dest_test_dir}" "${tmp_source_test_file}" "${tmp_source_test_dir}" &> "${console}" &
+    test_string=$(tr -dc '[:alnum:]' < /dev/urandom | fold -w 1024 | head -n 1)
+    echo "${test_string}" > "${tmp_source_test_file}" &
+    sleep 1
+    read_test_string="$(cat "${tmp_dest_test_dir}/${tmp_source_test_file#${tmp_source_test_dir}}")"
+    assert [ "${test_string}" == "${read_test_string}" ]
+
+    # Test creating directory structure
+    mkdir "${tmp_source_test_dir}/sub_dir"
+    create_directory_structure "${tmp_dest_test_dir}" "${tmp_source_test_dir}/sub_dir" "${tmp_source_test_dir}"
+    assert [ "$(basename $(find "${tmp_dest_test_dir}" -mindepth 1 -type d))" == "$(basename $(find  "${tmp_source_test_dir}" -mindepth 1 -type d))" ]
+
+    # Test mirroring a more complicated structure
+    create_secure_tmp tmp_mirror_test_dir 'dir'
+    mkdir "${tmp_source_test_dir}/sub_dir/sub_sub_dir"
+    touch "${tmp_source_test_dir}/test_file"
+    touch "${tmp_source_test_dir}/sub_dir/sub_file"
+    touch "${tmp_source_test_dir}/sub_dir/sub_sub_dir/sub_sub_file"
+
+    mirror_envsubst_path "${tmp_mirror_test_dir}" "${tmp_source_test_dir}" &
+    sleep 1
+    mapfile -t files < <(find "${tmp_source_test_dir}" -type f)
+    mapfile -t pipes < <(find "${tmp_mirror_test_dir}" -type p)
+    assert [ "${#files}" -eq "${#pipes}" ]
+
+    for (( index=${#files[@]}-1 ; index>=0 ; index-- )) ; do
+        assert diff "${files[${index}]}" "${pipes[${index}]}"
+    done
+    exit 0
+}
+
+if "${run_unit_tests}" ; then
+    unit_tests
+fi
+
 # Call the main mirroring function
 mirror_envsubst_path "${non_argument_parameters[@]}"
+
+
