@@ -29,6 +29,17 @@ source "$(dirname "${0}")/../shtdlib.sh"
 
 debug 10 "Running ${0} with PID: ${$}"
 
+if ! whichs envsubst ; then
+    color_echo red "Unable to locate envsubst command, please make sure it's available"
+    color_echo cyan 'Perhaps this can be fixed with: apt-get -y install gettext-base'
+    exit 1
+fi
+if ! whichs inotifywait ; then
+    color_echo red "Unable to locate the inotifywait command, please make sure it's available"
+    color_echo cyan 'Perhaps this can be fixed with: apt-get install inotify-tools'
+    exit 1
+fi
+
 # Print usage and argument list
 function print_usage {
 cat << EOF
@@ -52,12 +63,14 @@ man inotifywait
 man mkfifo
 man envsubst
 man kill
+man pgrep/pkill
 
 OPTIONS:
    -p, --process                    Process PID or name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
    -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
    -h, --help                       Show this message
+   -d, --daemon                     Daemonize, run in the background
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
    -t, --test                       Run unit tests
 
@@ -94,6 +107,10 @@ function parse_arguments {
             overlay='true'
             debug 5 "Overlay enabled!"
         ;;
+        'd'|'daemon')
+            daemonize='true'
+            debug 5 "Daemon mode selected!"
+        ;;
         'v'|'verbose')
             parse_opt_arg verbosity '10'
             export verbose=true
@@ -126,10 +143,9 @@ function parse_arguments {
 }
 
 # Process arguments/parameters/options
-while getopts ":-:p:s:otvh" opt; do
+while getopts ":-:p:s:dotvh" opt; do
     parse_arguments "${opt}"
 done
-#non_argument_parameters=( "${@##\-*}" )
 declare -a non_argument_parameters
 remaining_parameters=( "${@##\-*}" )
 for i in "${remaining_parameters[@]}"; do
@@ -144,9 +160,11 @@ if [ "${#@}" -lt 2 ] && ! "${run_unit_tests}" ; then
     print_usage
     exit 64
 fi
+export run_unit_tests="${run_unit_tests:-false}"
 export signal="${signal:-SIGHUP}"
 export process="${process:-}"
-export overlay="${overlay:-'false'}"
+export overlay="${overlay:-false}"
+export daemonize="${daemonize:-false}"
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
@@ -188,7 +206,17 @@ function mirror_envsubst_path {
     fi
     # Iterate over each source file/directory, exclude root dir if specified
     for path in "${sources[@]}"; do
+        if ! [ -e "${path}" ] ; then
+            color_echo red "Source path: ${path} does not exist, exiting!"
+            exit 1
+        fi
         full_path="$(readlink -m "${path}")"
+
+        if [ "${full_path#${destination}}" != "${full_path}" ] || [ "${destination#${full_path}}" != "${destination}" ] ; then
+            color_echo red "Source/Destination directories can't be subdirectories of each other or the same directory"
+            exit 64
+        fi
+
         mapfile -t directories < <(find "${full_path}" -mindepth 1 -type d -exec readlink -m {} \;)
         mapfile -t files < <(find "${full_path}" -type f -exec readlink -m {} \;)
 
@@ -209,13 +237,8 @@ function mirror_envsubst_path {
             color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
-                if [ -n "${file}" ] ; then
-                    add_on_sig "rm -f ${destination}/${file#${full_path}}"
-                    setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
-                else
-                    color_echo red "EMPTY FILE!"
-                    exit 1
-                fi
+                add_on_sig "rm -f ${destination}/${file#${full_path}}"
+                setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
             done
         fi
 
@@ -319,6 +342,7 @@ function unit_tests {
     touch "${tmp_source_test_dir}/sub_dir/sub_sub_dir/sub_sub_file"
 
     mirror_envsubst_path "${tmp_mirror_test_dir}" "${tmp_source_test_dir}" &
+
     sleep 1
     mapfile -t files < <(find "${tmp_source_test_dir}" -type f)
     mapfile -t pipes < <(find "${tmp_mirror_test_dir}" -type p)
@@ -343,12 +367,19 @@ function unit_tests {
     test_string_from_trap="$(cat "${signal_test_file}")"
     assert [ "${test_string_from_trap}" == "${test_string}" ]
     color_echo green "All tests successfully completed"
+    # Make sure all descendant processes get terminated
+    kill $(pgrep --pgroup "${$}" | grep -v "${0}")
     exit 0
 }
 
-if "${run_unit_tests}" ; then
+# Run tests or not
+if ${run_unit_tests} ; then
     unit_tests
 fi
 
 # Call the main mirroring function
-mirror_envsubst_path "${non_argument_parameters[@]}"
+if ${daemonize} ; then
+    mirror_envsubst_path "${non_argument_parameters[@]}" &> "${console}" &
+else
+    mirror_envsubst_path "${non_argument_parameters[@]}"
+fi
