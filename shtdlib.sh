@@ -283,6 +283,39 @@ function priv_esc_with_env {
     return ${?}
 }
 
+# A subprocess which performs a command when it receives a signal
+# First parameter is the signal and the rest is assumed to be the command
+# Returns the PID of the subprocess
+function signal_processor {
+    local signal="${1}"
+    local command="${*:2}"
+    #bash -c "trap '${command}' '${signal}' && cat /dev/zero & trap 'kill "'${!}'"' '${signal}' && wait "'${!}' &
+    #bash -c "trap '${command}' ${signal} && trap 'kill "'$(jobs -pr)'"' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero" &
+    #bash -c "trap '${command}' ${signal} && trap 'pkill --exact --full ${wait_command}' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero" &
+    #bash -c "trap '${command}' ${signal} && trap 'echo BINGO && trap - ${signal} SIGINT SIGTERM EXIT && kill -SIGTERM 0' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero"
+    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" &> /dev/null &
+    echo "${!}"
+}
+
+# Signals a process by either exact name or pid
+# Accepts name/pid as first parameter and optionally signal as second parameter
+function signal_process {
+debug 8 "Signaling ${1} with ${2:-SIGTERM}"
+if [[ "${1}" =~ ^[0-9]+$ ]] ; then
+    if [ "${2}" != '' ] ; then
+        kill -s "${2}" "${1}"
+    else
+        kill "${1}"
+    fi
+else
+    if [ "${2}" != '' ] ; then
+        pkill --exact --signal "${2}" "${1}"
+    else
+        pkill --exact "${1}"
+    fi
+fi
+}
+
 # Allows checking of exit status, on error print debugging info and exit.
 # Takes an optional error message in which case only it will be shown
 # This is typically only used when running in non-strict mode but when errors

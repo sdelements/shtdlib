@@ -27,6 +27,8 @@ console="$(tty || logger || false)"
 # shellcheck source=../shtdlib.sh
 source "$(dirname "${0}")/../shtdlib.sh"
 
+debug 10 "Running ${0} with PID: ${$}"
+
 # Print usage and argument list
 function print_usage {
 cat << EOF
@@ -52,7 +54,7 @@ man envsubst
 man kill
 
 OPTIONS:
-   -p, --process                    Process name to signal if config files change
+   -p, --process                    Process PID or name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
    -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
    -h, --help                       Show this message
@@ -81,11 +83,11 @@ function parse_arguments {
             parse_arguments "${tag}"
         ;;
         'p'|'process')
-            process="${OPTARG}"
+            export process="${OPTARG}"
             debug 5 "Set process name to signal to: ${process}"
         ;;
         's'|'signal')
-            signal="${OPTARG}"
+            export signal="${OPTARG}"
             debug 5 "Set signal to: ${signal}"
         ;;
         'o'|'overlay')
@@ -241,13 +243,16 @@ function mirror_envsubst_path {
                     'MODIFY'|'CLOSE_WRITE') # File modified events
                         debug 6 "File modification event on: ${dir_file_events[*]}"
                         if [ -n "${process}" ] ; then
-                            killall -"${signal}" "${process}"
+                            signal_process "${process}" "${signal}"
                         fi
                     ;;
                     'MOVED_TO'|'CREATE') # New file events
                         debug 6 "New file event on: ${dir_file_events[*]0:1} ${event}"
                         create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
                         setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
+                        if [ -n "${process}" ] ; then
+                            signal_process "${process}" "${signal}"
+                        fi
                     ;;
                     'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
                         fs_object="${dir_file_events[0]}/${dir_file_events[1]}"
@@ -259,9 +264,15 @@ function mirror_envsubst_path {
                         elif [ -d "${fs_object}" ] ; then
                             rmdir "${mirror_object}"
                         fi
+                        if [ -n "${process}" ] ; then
+                            signal_process "${process}" "${signal}"
+                        fi
                     ;;
                     'DELETE_SELF'|'UNMOUNT') # Stop/exit/cleanup events
                         color_echo red "Received fatal event: ${dir_file_events[0:1]} ${event}, exiting!"
+                        if [ -n "${process}" ] ; then
+                            signal_process "${process}" "${signal}"
+                        fi
                         exit 1
                     ;;
                 esac
@@ -271,17 +282,25 @@ function mirror_envsubst_path {
 }
 
 # Unit tests
-# shellcheck disable=SC2154
+# shellcheck disable=SC2046,SC2154,SC2016,SC2034,SC2064
 function unit_tests {
+    export verbosity=10
     debug 5 "Running unit tests!"
     # Basic setup
+    export TEST_VARIABLE1='/dev/null'
+    export TEST_VARIABLE2='example.com'
     create_secure_tmp tmp_source_test_dir 'dir'
     create_secure_tmp tmp_dest_test_dir 'dir'
     create_secure_tmp tmp_source_test_file 'file' "${tmp_source_test_dir}"
+    test_string=$(tr -dc '[:alnum:]' < /dev/urandom | fold -w 1024 | head -n 1)
+    export signal='SIGUSR1'
+    # Set up a proces to listen to signals and perform actions
+    signal_test_file="${tmp_source_test_dir}/signal_test_file"
+    process="$(signal_processor "${signal}"  "test -f ${signal_test_file} && echo ${test_string} > ${signal_test_file}")"
+    export process
 
     # Test setting up a named pipe
     setup_named_pipe "${tmp_dest_test_dir}" "${tmp_source_test_file}" "${tmp_source_test_dir}" &> "${console}" &
-    test_string=$(tr -dc '[:alnum:]' < /dev/urandom | fold -w 1024 | head -n 1)
     echo "${test_string}" > "${tmp_source_test_file}" &
     sleep 1
     read_test_string="$(cat "${tmp_dest_test_dir}/${tmp_source_test_file#${tmp_source_test_dir}}")"
@@ -308,6 +327,22 @@ function unit_tests {
     for (( index=${#files[@]}-1 ; index>=0 ; index-- )) ; do
         assert diff "${files[${index}]}" "${pipes[${index}]}"
     done
+
+    # Test dynamically adding a file with variables
+    echo 'setting1=${TEST_VARIABLE1}' > "${tmp_source_test_dir}/settings_file"
+    sleep 1
+    assert [ "$(cat "${tmp_mirror_test_dir}/settings_file")" == "$(cat "${tmp_mirror_test_dir}/settings_file")" ]
+    echo 'setting2=$TEST_VARIABLE2' >> "${tmp_source_test_dir}/settings_file"
+    sleep 1
+    assert [ "$(cat "${tmp_mirror_test_dir}/settings_file")" == "$(cat "${tmp_mirror_test_dir}/settings_file")" ]
+
+    # Test signaling
+    touch "${tmp_source_test_dir}/signal_test_file"
+    sleep 1
+    assert test -f "${tmp_source_test_dir}/signal_test_file"
+    test_string_from_trap="$(cat "${signal_test_file}")"
+    assert [ "${test_string_from_trap}" == "${test_string}" ]
+    color_echo green "All tests successfully completed"
     exit 0
 }
 
@@ -317,5 +352,3 @@ fi
 
 # Call the main mirroring function
 mirror_envsubst_path "${non_argument_parameters[@]}"
-
-
