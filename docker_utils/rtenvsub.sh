@@ -50,13 +50,13 @@ rtenvsub
 
 Real time environment variable based templating engine
 
-This script uses the Linux inotify interface in combination with named pipes
-and the envsubst program to mirror directories and files replacing environment
+This script uses the Linux inotify interface in combination with the envsubst
+program and optionaly named pipes to mirror directories and files replacing environment
 variables in realtime in an efficent manner. In addition any changes to the
 template files can trigger service/process reload or restart by signaling them
 (default SIGHUP).
 
-To refresh environment variables loaded by this script you can set it the HUP signal.
+To refresh environment variables loaded by this script you can send it the HUP signal.
 
 For more info see:
 
@@ -70,6 +70,7 @@ OPTIONS:
    -p, --process                    Process PID or name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
    -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
+   -n, --nofifo                    Write to files instead of using named pipes
    -h, --help                       Show this message
    -d, --daemon                     Daemonize, run in the background
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
@@ -108,6 +109,10 @@ function parse_arguments {
             overlay='true'
             debug 5 "Overlay enabled!"
         ;;
+        'n'|'nofifo')
+            nofifo='true'
+            debug 5 "Named pipes disabled, using files instead!"
+        ;;
         'd'|'daemon')
             daemonize='true'
             debug 5 "Daemon mode selected!"
@@ -144,7 +149,7 @@ function parse_arguments {
 }
 
 # Process arguments/parameters/options
-while getopts ":-:p:s:dotvh" opt; do
+while getopts ":-:p:s:ndotvh" opt; do
     parse_arguments "${opt}"
 done
 all_arguments=( "${@}" )
@@ -169,6 +174,7 @@ export signal="${signal:-SIGHUP}"
 export process="${process:-}"
 export overlay="${overlay:-false}"
 export daemonize="${daemonize:-false}"
+export nofifo="${nofifo:-false}"
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
@@ -182,8 +188,17 @@ function setup_named_pipe {
 
     # Loop envsubst until the destination or source file no longer exist
     while [ -d "${destination}" ] && [ -f "${file}" ] ; do
-        envsubst < "${file}" > "${destination}/${file#${path}}"
+        render_file "${destination}" "${file}" "${path}}"
     done
+}
+
+# Render configuratin template to a file using envsubst
+function render_file {
+    local destination="${1}"
+    local file="${2}"
+    local path="${3}"
+    debug 10 "Rendering file: ${destination}/${file#${path}} from template: ${file}"
+    envsubst < "${file}" > "${destination}/${file#${path}}"
 }
 
 # Create a directory to mirror a source
@@ -236,13 +251,17 @@ function mirror_envsubst_path {
 
         fi
 
-        # Create named pipes and set up cleanup on signals for them
+        # Create named pipes / files and set up cleanup on signals for them
         if [ -z "${files[*]}" ] ; then
             color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
                 add_on_sig "rm -f ${destination}/${file#${full_path}}"
-                setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
+                if ${nofifo} ; then
+                    render_file "${destination}" "${file}" "${full_path}"
+                else
+                    setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
+                fi
             done
         fi
 
@@ -272,13 +291,20 @@ function mirror_envsubst_path {
                         if [ -n "${process}" ] ; then
                             signal_process "${process}" "${signal}"
                         fi
+                        if ${nofifo} ; then
+                            render_file "${destination}" "${file}" "${full_path}"
+                        fi
                     ;;
                     'MOVED_TO'|'CREATE') # New file events
                         debug 6 "New file event on: ${dir_file_events[*]} ${event}"
                         create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
-                        setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
                         if [ -n "${process}" ] ; then
                             signal_process "${process}" "${signal}"
+                        fi
+                        if ${nofifo} ; then
+                            render_file "${destination}" "${file}" "${full_path}"
+                        else
+                            setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
                         fi
                     ;;
                     'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
