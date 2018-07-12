@@ -164,17 +164,18 @@ for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
 done
 debug 10 "Non-argument parameters:" "${non_argument_parameters[*]}"
 
-if [ "${#@}" -lt 2 ] && ! "${run_unit_tests}" ; then
-    color_echo red "You need to supply at least one source dir/file and a destination directory"
-    print_usage
-    exit 64
-fi
 export run_unit_tests="${run_unit_tests:-false}"
 export signal="${signal:-SIGHUP}"
 export process="${process:-}"
 export overlay="${overlay:-false}"
 export daemonize="${daemonize:-false}"
 export nofifo="${nofifo:-false}"
+
+if [ "${#@}" -lt 2 ] && ! "${run_unit_tests}" ; then
+    color_echo red "You need to supply at least one source dir/file and a destination directory"
+    print_usage
+    exit 64
+fi
 
 # Create a named pipe and set up envsubst loop to feed it
 function setup_named_pipe {
