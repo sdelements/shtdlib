@@ -24,8 +24,9 @@ umask 0077
 console="$(tty || logger || false)"
 
 # Import the standard shell library
-# shellcheck source=../shtdlib.sh
-source "$(dirname "${0}")/../shtdlib.sh"
+# shellcheck source=../shtdlib.sh disable=SC1091
+source "$(dirname "${0}")/../shtdlib.sh" &> /dev/null || ../shtdlib.sh &> /dev/null || source ./shtdlib.sh &> /dev/null || source shtdlib.sh
+
 
 debug 10 "Running ${0} with PID: ${$}"
 
