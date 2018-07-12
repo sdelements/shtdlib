@@ -212,10 +212,76 @@ function create_directory_structure {
     mkdir -m "$(stat -c '%a' "${dir}")" -p "${destination}/${dir#${path}}"
 }
 
-# Mirrors a given path of directories and files to a second path using named
-# pipes and substituting environment variables found in files in realtime
+# Loops inotify on a given source and makes sure it's mirrored and templates
+# rendered to the destination
+function inotify_looper  {
+    local destination="${1}"
+    local full_path="${2}"
+    # Set up notifications for each path and fork watching
+    inotifywait --monitor --recursive --format '%w %f %e' "${full_path}"\
+        --event 'modify' --event 'close_write'\
+        --event 'moved_to' --event 'create'\
+        --event 'moved_from' --event 'delete' --event 'move_self'\
+        --event 'delete_self' --event 'unmount'\
+            | while read -r -a dir_file_events; do
+        for event in "${dir_file_events[@]:2}"; do
+            case "${event}" in
+                'ACCESS'|'CLOSE_NOWRITE'|'OPEN') #Non events
+                    color_echo red "Non mutable event on: ${dir_file_events[*]}, this should not happen since we don't subscribe to these"
+                    exit 1
+                ;;
+                'MODIFY'|'CLOSE_WRITE') # File modified events
+                    debug 6 "File modification event on: ${dir_file_events[*]}"
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
+                    fi
+                    if ${nofifo} ; then
+                        render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
+                    fi
+                ;;
+                'MOVED_TO'|'CREATE') # New file events
+                    debug 6 "New file event on: ${dir_file_events[*]} ${event}"
+                    create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
+                    fi
+                    if ${nofifo} ; then
+                        render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
+                    else
+                        setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
+                    fi
+                ;;
+                'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
+                    fs_object="${dir_file_events[0]}/${dir_file_events[1]}"
+                    mirror_object="${destination}/${fs_object#${full_path}}"
+                    debug 5 "Filesystem object removed from source, removing from mirror"
+                    debug 5 "Source: ${fs_object} Pipe: ${mirror_object}"
+                    if [ -f "${fs_object}" ] ; then
+                        rm -f "${mirror_object}"
+                    elif [ -d "${fs_object}" ] ; then
+                        rmdir "${mirror_object}"
+                    fi
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
+                    fi
+                ;;
+                'DELETE_SELF'|'UNMOUNT') # Stop/exit/cleanup events
+                    color_echo red "Received fatal event: ${dir_file_events[0:1]} ${event}, exiting!"
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
+                    fi
+                    exit 1
+                ;;
+            esac
+        done
+    done
+}
+
+
+# Mirrors given path(s) of directories and files to a destination path using named
+# pipes or files substituting environment variables found in files in realtime
 # Ignores filesystem objects that are neither files or directories
-function mirror_envsubst_path {
+function mirror_envsubst_paths {
     declare -a sources
     destination="$(readlink -m "${1}")"
     sources=("${@:2}")
@@ -223,6 +289,7 @@ function mirror_envsubst_path {
         color_echo red "Destination path: ${destination} is not a directory, exiting!"
         exit 1
     fi
+    declare -a looper_pids
     # Iterate over each source file/directory, exclude root dir if specified
     for path in "${sources[@]}"; do
         if ! [ -e "${path}" ] ; then
@@ -272,66 +339,19 @@ function mirror_envsubst_path {
             add_on_sig "rmdir ${destination}/${directories[${index}]#${full_path}}"
         done
 
-
-        # Set up notifications for each path and fork watching
-        inotifywait --monitor --recursive --format '%w %f %e' "${full_path}"\
-            --event 'modify' --event 'close_write'\
-            --event 'moved_to' --event 'create'\
-            --event 'moved_from' --event 'delete' --event 'move_self'\
-            --event 'delete_self' --event 'unmount'\
-             | while read -r -a dir_file_events; do
-            for event in "${dir_file_events[@]:2}"; do
-                case "${event}" in
-                    'ACCESS'|'CLOSE_NOWRITE'|'OPEN') #Non events
-                        color_echo red "Non mutable event on: ${dir_file_events[*]}, this should not happen since we don't subscribe to these"
-                        exit 1
-                    ;;
-                    'MODIFY'|'CLOSE_WRITE') # File modified events
-                        debug 6 "File modification event on: ${dir_file_events[*]}"
-                        if [ -n "${process}" ] ; then
-                            signal_process "${process}" "${signal}"
-                        fi
-                        if ${nofifo} ; then
-                            render_file "${destination}" "${file}" "${full_path}"
-                        fi
-                    ;;
-                    'MOVED_TO'|'CREATE') # New file events
-                        debug 6 "New file event on: ${dir_file_events[*]} ${event}"
-                        create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
-                        if [ -n "${process}" ] ; then
-                            signal_process "${process}" "${signal}"
-                        fi
-                        if ${nofifo} ; then
-                            render_file "${destination}" "${file}" "${full_path}"
-                        else
-                            setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
-                        fi
-                    ;;
-                    'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
-                        fs_object="${dir_file_events[0]}/${dir_file_events[1]}"
-                        mirror_object="${destination}/${fs_object#${full_path}}"
-                        debug 5 "Filesystem object removed from source, removing from mirror"
-                        debug 5 "Source: ${fs_object} Pipe: ${mirror_object}"
-                        if [ -f "${fs_object}" ] ; then
-                            rm -f "${mirror_object}"
-                        elif [ -d "${fs_object}" ] ; then
-                            rmdir "${mirror_object}"
-                        fi
-                        if [ -n "${process}" ] ; then
-                            signal_process "${process}" "${signal}"
-                        fi
-                    ;;
-                    'DELETE_SELF'|'UNMOUNT') # Stop/exit/cleanup events
-                        color_echo red "Received fatal event: ${dir_file_events[0:1]} ${event}, exiting!"
-                        if [ -n "${process}" ] ; then
-                            signal_process "${process}" "${signal}"
-                        fi
-                        exit 1
-                    ;;
-                esac
-            done
-        done
+        # Run update loop and detach it
+        if ${daemonize} ; then
+            inotify_looper "${destination}" "${full_path}"  &> "${console}" &
+        else
+            inotify_looper "${destination}" "${full_path}" &
+        fi
+        looper_pids+=( "${!}" )
     done
+    if ${daemonize} ; then
+        disown "${looper_pids[*]}"
+    else
+        wait "${looper_pids[*]}"
+    fi
 }
 
 # Unit tests
@@ -371,7 +391,7 @@ function unit_tests {
     touch "${tmp_source_test_dir}/sub_dir/sub_file"
     touch "${tmp_source_test_dir}/sub_dir/sub_sub_dir/sub_sub_file"
 
-    mirror_envsubst_path "${tmp_mirror_test_dir}" "${tmp_source_test_dir}" &
+    mirror_envsubst_paths "${tmp_mirror_test_dir}" "${tmp_source_test_dir}" &
 
     sleep 1
     mapfile -t files < <(find "${tmp_source_test_dir}" -type f)
@@ -410,7 +430,7 @@ fi
 
 # Call the main mirroring function
 if ${daemonize} ; then
-    mirror_envsubst_path "${non_argument_parameters[@]}" &> "${console}" &
+    mirror_envsubst_paths "${non_argument_parameters[@]}" &> "${console}"
 else
-    mirror_envsubst_path "${non_argument_parameters[@]}"
+    mirror_envsubst_paths "${non_argument_parameters[@]}"
 fi
