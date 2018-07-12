@@ -289,10 +289,6 @@ function priv_esc_with_env {
 function signal_processor {
     local signal="${1}"
     local command="${*:2}"
-    #bash -c "trap '${command}' '${signal}' && cat /dev/zero & trap 'kill "'${!}'"' '${signal}' && wait "'${!}' &
-    #bash -c "trap '${command}' ${signal} && trap 'kill "'$(jobs -pr)'"' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero" &
-    #bash -c "trap '${command}' ${signal} && trap 'pkill --exact --full ${wait_command}' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero" &
-    #bash -c "trap '${command}' ${signal} && trap 'echo BINGO && trap - ${signal} SIGINT SIGTERM EXIT && kill -SIGTERM 0' ${signal} SIGINT SIGTERM EXIT && cat /dev/zero"
     bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" &> /dev/null &
     echo "${!}"
 }
