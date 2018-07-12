@@ -147,12 +147,15 @@ function parse_arguments {
 while getopts ":-:p:s:dotvh" opt; do
     parse_arguments "${opt}"
 done
+all_arguments=( "${@}" )
 declare -a non_argument_parameters
-remaining_parameters=( "${@##\-*}" )
-for i in "${remaining_parameters[@]}"; do
-    if [ -n "${i}" ] ; then
-        non_argument_parameters+=( "${i}" )
-    fi
+for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
+        # shellcheck disable=SC2004
+	if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' ; then
+            non_argument_parameters[(${index})]="${all_arguments[${index}]}"
+        else
+            break
+        fi
 done
 debug 10 "Non-argument parameters:" "${non_argument_parameters[*]}"
 
@@ -247,7 +250,7 @@ function mirror_envsubst_path {
         # reverse order to ensure safety of operation without recursive rm
         local index
         for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-            add_on_sig "rmdir ${destination}/${directories[index]#${full_path}}"
+            add_on_sig "rmdir ${destination}/${directories[${index}]#${full_path}}"
         done
 
 
@@ -271,7 +274,7 @@ function mirror_envsubst_path {
                         fi
                     ;;
                     'MOVED_TO'|'CREATE') # New file events
-                        debug 6 "New file event on: ${dir_file_events[*]0:1} ${event}"
+                        debug 6 "New file event on: ${dir_file_events[*]} ${event}"
                         create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
                         setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
                         if [ -n "${process}" ] ; then
@@ -349,7 +352,8 @@ function unit_tests {
     mapfile -t pipes < <(find "${tmp_mirror_test_dir}" -type p)
     assert [ "${#files}" -eq "${#pipes}" ]
 
-    for (( index=${#files[@]}-1 ; index>=0 ; index-- )) ; do
+    # Check each file matches
+    for (( index=0 ; index<${#files[@]} ; index++ )) ; do
         assert diff "${files[${index}]}" "${pipes[${index}]}"
     done
 
