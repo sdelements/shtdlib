@@ -156,7 +156,7 @@ all_arguments=( "${@}" )
 declare -a non_argument_parameters
 for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
         # shellcheck disable=SC2004
-	if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' ; then
+	if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' '-p' '-s' '-v' ; then
             non_argument_parameters[(${index})]="${all_arguments[${index}]}"
         else
             break
