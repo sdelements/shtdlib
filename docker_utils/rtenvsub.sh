@@ -341,15 +341,14 @@ function mirror_envsubst_paths {
 
         # Run update loop and detach it
         if ${daemonize} ; then
-            inotify_looper "${destination}" "${full_path}"  &> "${console}" &
+            inotify_looper "${destination}" "${full_path}" &> "${console}" &
         else
             inotify_looper "${destination}" "${full_path}" &
         fi
         looper_pids+=( "${!}" )
     done
-    if ${daemonize} ; then
-        disown "${looper_pids[*]}"
-    else
+    if ! ${daemonize} ; then
+        debug 8 "Waiting for looper pids: ${looper_pids[*]}"
         wait "${looper_pids[*]}"
     fi
 }
@@ -430,7 +429,8 @@ fi
 
 # Call the main mirroring function
 if ${daemonize} ; then
-    mirror_envsubst_paths "${non_argument_parameters[@]}" &> "${console}"
+    mirror_envsubst_paths "${non_argument_parameters[@]}" &> "${console}" &
+    wait "${!}"
 else
     mirror_envsubst_paths "${non_argument_parameters[@]}"
 fi
