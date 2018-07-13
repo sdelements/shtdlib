@@ -338,7 +338,9 @@ function exit_on_fail {
 # shown in the original since this can easily be called in a subshell in which
 # case the trap will only apply to that subshell
 declare -a on_exit
+on_exit=()
 declare -a on_break
+on_break=()
 
 function on_exit {
     # shellcheck disable=SC2181
@@ -387,14 +389,14 @@ function on_break {
 
 function add_on_exit {
     debug 10 "Registering signal action on exit: \"${*}\""
-    local n=${#on_exit[*]}
+    local n="${#on_exit[@]}"
     on_exit[${n}]="${*}"
     debug 10 "on_exit content: ${on_exit[*]}, size: ${#on_exit[*]}, keys: ${!on_exit[*]}"
 }
 
 function add_on_break {
     debug 10 "Registering signal action on break: \"${*}\""
-    local n=${#on_break[*]}
+    local n="${#on_break[@]}"
     on_break[${n}]="${*}"
     debug 10 "on_break content: ${on_break[*]}, size: ${#on_break[*]}, keys: ${!on_break[*]}"
 }

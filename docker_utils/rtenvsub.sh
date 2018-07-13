@@ -20,9 +20,6 @@ version='0.1'
 # Set a safe umask
 umask 0077
 
-# Log/Console destination
-console="$(tty || logger || false)"
-
 # Import the standard shell library
 # shellcheck source=../shtdlib.sh disable=SC1091
 source "$(dirname "${0}")/../shtdlib.sh" &> /dev/null || ../shtdlib.sh &> /dev/null || source ./shtdlib.sh &> /dev/null || source shtdlib.sh
@@ -328,7 +325,7 @@ function mirror_envsubst_paths {
                 if ${nofifo} ; then
                     render_file "${destination}" "${file}" "${full_path}"
                 else
-                    setup_named_pipe "${destination}" "${file}" "${full_path}" &> "${console}" &
+                    setup_named_pipe "${destination}" "${file}" "${full_path}" &
                 fi
             done
         fi
@@ -342,7 +339,7 @@ function mirror_envsubst_paths {
 
         # Run update loop and detach it
         if ${daemonize} ; then
-            inotify_looper "${destination}" "${full_path}" &> "${console}" &
+            inotify_looper "${destination}" "${full_path}" &
         else
             inotify_looper "${destination}" "${full_path}" &
         fi
@@ -373,7 +370,7 @@ function unit_tests {
     export process
 
     # Test setting up a named pipe
-    setup_named_pipe "${tmp_dest_test_dir}" "${tmp_source_test_file}" "${tmp_source_test_dir}" &> "${console}" &
+    setup_named_pipe "${tmp_dest_test_dir}" "${tmp_source_test_file}" "${tmp_source_test_dir}" &
     echo "${test_string}" > "${tmp_source_test_file}" &
     sleep 1
     read_test_string="$(cat "${tmp_dest_test_dir}/${tmp_source_test_file#${tmp_source_test_dir}}")"
@@ -430,7 +427,7 @@ fi
 
 # Call the main mirroring function
 if ${daemonize} ; then
-    mirror_envsubst_paths "${non_argument_parameters[@]:-}" &> "${console}" &
+    mirror_envsubst_paths "${non_argument_parameters[@]:-}" &
     wait "${!}"
 else
     mirror_envsubst_paths "${non_argument_parameters[@]:-}"
