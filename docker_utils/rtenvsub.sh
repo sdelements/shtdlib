@@ -196,7 +196,7 @@ function render_file {
     local file="${2}"
     local path="${3}"
     debug 10 "Rendering file: ${destination}/${file#${path}} from template: ${file}"
-    envsubst < "${file}" > "${destination}/${file#${path}}" "$(compgen -v | tr '\n' '$')"
+    envsubst < "${file}" > "${destination}/${file#${path}}" "$(compgen -v | sed -e 's/^/\$/g' | tr '\n' ',')"
 }
 
 # Create a directory to mirror a source
