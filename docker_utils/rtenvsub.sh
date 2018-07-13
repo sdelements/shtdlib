@@ -70,7 +70,7 @@ OPTIONS:
    -p, --process                    Process PID or name to signal if config files change
    -s, --signal                     Signal to send (defaults to HUP, see man kill for details)
    -o, --overlay                    Set up mirror even if the destination directory contains files/subdirectories
-   -n, --nofifo                    Write to files instead of using named pipes
+   -n, --nofifo                     Write to files instead of using named pipes
    -h, --help                       Show this message
    -d, --daemon                     Daemonize, run in the background
    -v, --verbose {verbosity_level}  Set verbose mode (optionally accepts a integer level)
@@ -162,7 +162,7 @@ for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
             break
         fi
 done
-debug 10 "Non-argument parameters:" "${non_argument_parameters[*]}"
+debug 10 "Non-argument parameters:" "${non_argument_parameters[*]:-}"
 
 export run_unit_tests="${run_unit_tests:-false}"
 export signal="${signal:-SIGHUP}"
@@ -430,8 +430,8 @@ fi
 
 # Call the main mirroring function
 if ${daemonize} ; then
-    mirror_envsubst_paths "${non_argument_parameters[@]}" &> "${console}" &
+    mirror_envsubst_paths "${non_argument_parameters[@]:-}" &> "${console}" &
     wait "${!}"
 else
-    mirror_envsubst_paths "${non_argument_parameters[@]}"
+    mirror_envsubst_paths "${non_argument_parameters[@]:-}"
 fi
