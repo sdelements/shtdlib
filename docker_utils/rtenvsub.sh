@@ -48,7 +48,7 @@ rtenvsub
 Real time environment variable based templating engine
 
 This script uses the Linux inotify interface in combination with the envsubst
-program and optionaly named pipes to mirror directories and files replacing environment
+program and optionally named pipes to mirror directories and files replacing environment
 variables in realtime in an efficent manner. In addition any changes to the
 template files can trigger service/process reload or restart by signaling them
 (default SIGHUP).
