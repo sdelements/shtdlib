@@ -187,7 +187,12 @@ function readlink_m {
 # also position
 function compare_versions {
     versions=(${@})
-    return "$(($(printf "%s\\n" "${versions[@]}" | sort --version-sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
+    if [ "$(sort --help | grep version-sort)" != '' ] ; then
+        return "$(($(printf "%s\\n" "${versions[@]}" | sort --version-sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
+    else
+        debug 10 "Using suboptimal version sort due to old Coreutils"
+        return "$(($(printf "%s\\n" "${versions[@]}" | sort -t. -k1,1n -k2,2n -k3,3n -k4.4n | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
+    fi
 }
 
 # Converts relative paths to full paths, ignores invalid paths
