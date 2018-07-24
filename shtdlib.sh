@@ -235,13 +235,9 @@ function version_sort {
 # compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' -> returns 4 # False but
 # also position
 function compare_versions {
-    versions=(${@})
-    if [ "$(sort --help | grep version-sort)" != '' ] ; then
-        return "$(($(printf "%s\\n" "${versions[@]}" | version_sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
-    else
-        debug 10 "Using suboptimal version sort due to old Coreutils"
-        return "$(($(printf "%s\\n" "${versions[@]}" | version_sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
-    fi
+    versions=( ${@} )
+    #shellcheck disable=SC2119
+    return "$(($(printf "%s\\n" "${versions[@]}" | version_sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
 }
 
 # Converts relative paths to full paths, ignores invalid paths
