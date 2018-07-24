@@ -154,11 +154,39 @@ function debug {
 function readlink_m {
     debug 10 "readlink_m called with: ${*}"
     args=( ${@} )
-    if [ "${#args[@]}" -gt 1 ] ; then
+    if [ "${#args[@]}" -eq 0 ] ; then
+        color_echo red 'readlink_m needs at least one argument, none were provided'
+        return 64
+    elif [ "${#args[@]}" -gt 1 ] ; then
         base_path="$(dirname "${args[0]}")"
         new_path="${base_path}/${args[1]}"
+    elif whichs readlink && readlink -f "${args[0]}" &> /dev/null ; then
+        readlink -f "${args[0]}"
+        return 0
+    elif whichs readlink && readlink -m "${args[0]}" &> /dev/null ; then
+        readlink -m "${args[0]}"
+        return 0
+    elif whichs realpath ; then
+        realpath "${args[0]}"
+        return 0
+    elif whichs greadink ; then
+        greadlink -m "${args[0]}"
+        return 0
+    elif whichs grealpath ; then
+        grealpath "${args[0]}"
+        return 0
+    elif [ -e "${args[0]}" ] ; then
+        if stat -f "%N %Y" "${args[0]}" &> /dev/null ; then
+            new_path="$(stat -f "%N %Y" "${args[0]}")"
+        elif stat -f "%n %N" "${args[0]}" &> /dev/null ; then
+            new_path="$(stat --format '%n %N' "${args[0]}" | tr -d "‘’")"
+        else
+            color_echo red "Unable to find a usable way to determine full path (readlink_m)"
+            exit_on_fail
+        fi
     else
-        new_path="$(stat -f "%N %Y" "${args[0]}")"
+        color_echo red "Unable to find a usable way to determine full path (readlink_m)"
+        exit_on_fail
     fi
     new_path=( ${new_path} )
     debug 10 "Processed path is: ${new_path[*]}"
@@ -675,7 +703,7 @@ function process_deferred_required_arguments {
 # Parse for optional arguments (-f vs. -f optional_argument)
 # Takes variable name as first arg and default value as optional second
 # variable will be initialized in any case for compat with -e
-parameter_array=(${@}) # Store all parameters as an array
+parameter_array=(${@:-}) # Store all parameters as an array
 function parse_opt_arg {
     # Pick up optional arguments
     debug 10 "Parameter Array is: ${parameter_array[*]}"
