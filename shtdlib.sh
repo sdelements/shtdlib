@@ -154,7 +154,10 @@ function debug {
 function readlink_m {
     debug 10 "readlink_m called with: ${*}"
     args=( ${@} )
-    if [ "${#args[@]}" -gt 1 ] ; then
+    if [ "${#args[@]}" -eq 0 ] ; then
+        color_echo red 'readlink_m needs at least one argument, none were provided'
+        return 64
+    elif [ "${#args[@]}" -gt 1 ] ; then
         base_path="$(dirname "${args[0]}")"
         new_path="${base_path}/${args[1]}"
     elif whichs readlink && readlink -f "${args[0]}" &> /dev/null ; then
