@@ -204,9 +204,30 @@ function readlink_m {
     fi
 }
 
-# Returns the index number of the first version, in effect this means it
-# returns true if the first value is the smallest
-# and same number as versions if the first value is the largest.
+# Platform independent version sort
+# When input is piped it's assumed to be newline (NL) delimited
+# When passed as parameters each one is processed independently
+# shellcheck disable=2120
+function version_sort {
+    if sort --help | grep -q version-sort ; then
+        local vsorter='sort --version-sort'
+    else
+        debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
+        local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4.4n'
+    fi
+
+    if [ "${#}" -eq 0 ] ; then
+        ${vsorter}
+    else
+        for arg in "${@}" ; do
+            echo "${arg}"
+        done | ${vsorter}
+    fi
+}
+
+# Returns the index number of the lowest version, in effect this means it
+# returns true if the first value is the smallest but will always return
+# the index of the lowest version
 # Example:
 # compare_versions '1.1.1 1.2.2test' -> returns 0 # True
 # compare_versions '1.2.2 1.1.1' -> returns 1 # False
@@ -214,13 +235,9 @@ function readlink_m {
 # compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' -> returns 4 # False but
 # also position
 function compare_versions {
-    versions=(${@})
-    if [ "$(sort --help | grep version-sort)" != '' ] ; then
-        return "$(($(printf "%s\\n" "${versions[@]}" | sort --version-sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
-    else
-        debug 10 "Using suboptimal version sort due to old Coreutils"
-        return "$(($(printf "%s\\n" "${versions[@]}" | sort -t. -k1,1n -k2,2n -k3,3n -k4.4n | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
-    fi
+    versions=( ${@} )
+    #shellcheck disable=SC2119
+    return "$(($(printf "%s\\n" "${versions[@]}" | version_sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
 }
 
 # Converts relative paths to full paths, ignores invalid paths
