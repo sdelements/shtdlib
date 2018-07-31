@@ -1654,6 +1654,18 @@ function ln_sf {
     debug 10 "Successfully created symlink"
 }
 
+function parse_non_param_args {
+# Sets non_parameter_arguments to any parameter that doesn't start with a dash
+# Call after using optarg
+    parameters=( "${@}" )
+    declare -a non_parameter_arguments
+    for (( n = OPTIND ; n <= ${#@} ; n++ )); do
+        if ! [[ "${parameters[${n}]}" =~ ^- ]] ; then
+            non_parameter_arguments+=( "${parameters[${n}]}" )
+        fi
+    done
+}
+
 alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,**********///****************************************///,    .. .....**/////*,***//////////////////*/////////***
 > ,,,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,********/////////////////////////////////////********************,,,**///////////////////,,**///////////////////////////*///
 > ,,,,,,************,,,,,,,,,,,,,......   .,*/**/*///////*//////////////////////////////******************,,,,**///////////////,,,**///////////////*//(//////////
