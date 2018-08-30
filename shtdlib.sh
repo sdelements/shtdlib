@@ -1654,6 +1654,19 @@ function ln_sf {
     debug 10 "Successfully created symlink"
 }
 
+# Create string of random characters
+#  - First param is length, default: 20
+#  - Second param is characters, default: A-Za-z0-9_
+gen_rand_chars() {
+    local length="${1}"
+    local chars="${2}"
+    [[ "${length}" == "" ]] && length=20
+    [[ "${chars}" == "" ]] && chars="A-Za-z0-9_"
+    debug 10 "Creating a string of random characters of length ${length}"
+    LC_CTYPE=C tr -dc ${chars} < /dev/urandom | head -c ${length}
+}
+
+
 alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,**********///****************************************///,    .. .....**/////*,***//////////////////*/////////***
 > ,,,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,********/////////////////////////////////////********************,,,**///////////////////,,**///////////////////////////*///
 > ,,,,,,************,,,,,,,,,,,,,......   .,*/**/*///////*//////////////////////////////******************,,,,**///////////////,,,**///////////////*//(//////////
