@@ -391,6 +391,7 @@ function exit_on_fail {
 # If set to 0 then multiple instances can run at the same time.
 # The on_mod_refresh variable determines if the function/command should be run
 # again at the end of the timeout if re-triggered during the previous run.
+# on_mod_max_queue_depth determines how many events should be queued up, defaults to 1
 # Modification includes the following FS events
 # MODIFY | CLOSE_WRITE
 # MOVED_TO | CREATE
@@ -399,7 +400,8 @@ function exit_on_fail {
 function add_on_mod {
     local arguments=("${@}")
     on_mod_refresh="${on_mod_refresh:-true}"
-    on_mod_max_frequency="${max_frequency:-10}"
+    on_mod_max_frequency="${max_frequency:-1}"
+    on_mod_max_queue_depth="${on_mod_max_queue_depth:-1}"
     for fs_object in "${arguments[@]:1}"; do
         assert test -e "${fs_object}"
         inotifywait --monitor --recursive --format '%f' "${fs_object}"\
@@ -408,38 +410,43 @@ function add_on_mod {
             --event 'moved_from' --event 'delete' --event 'move_self'\
             --event 'delete_self' --event 'unmount' \
             | while read -r mod_fs_object; do
-            local debounce_name="on_mod_${$}"
-            declare -xa "${debounce_name}"
-            declare -a 'debounce=("${!'"$debounce_name"'[@]}")'
-            #shellcheck disable=SC2154
-            local n="${#debounce[@]}"
-            for pid in "${!debounce_name[@]}" ; do
-                color_echo green "Processing pid: ${pid}"
-                kill -0 "${pid}"
+            debug 10 "Handling event using event loop with pid: ${$}"
+            declare -a sub_processes
+            # Remove stale pids from sub process array
+            live_sub_processes=()
+            for pid in "${sub_processes[@]}" ; do
+                if kill -0 "${pid}" &> /dev/null ; then
+                    debug 10 "Contacted pid: ${pid}"
+                    live_sub_processes+=("${pid}")
+                fi
+                sub_processes=("${live_sub_processes[@]}")
             done
+            # Fork a process to run the command
             (
-                debug 8 "Found ${n} elements in debounce array: ${debounce_name}"
-                debug 10 "${debounce_name} == ( ${debounce[*]} )"
-                if [ "${on_mod_max_frequency}" -gt 0 ] && [ "${n}" -gt 0 ] ; then
-                    if "${on_mod_refresh}" ; then
-                        #shellcheck disable=SC2004
-                        sibling_pid_element="${debounce_name}[$(( ${n} - 1 ))]"
-                        if kill -0 "${!sibling_pid_element}" &> /dev/null ; then
-                            debug 10 "Discarding redundant refresh event"
-                        else
-                            sleep "${on_mod_max_frequency}"
-                            debug 7 "Running ${arguments} to refresh after ${on_mod_max_frequency} sec timeout with pid ${$}"
-                            ${arguments} "${mod_fs_object}"
+                debug 8 "Found ${#sub_processes[@]} elements in sub process array: ${sub_processes[*]}"
+                if [ "${on_mod_max_frequency}" -gt 0 ] && [ "${#sub_processes[@]}" -gt 0 ] ; then
+                    if "${on_mod_refresh}" &&  [ "${#sub_processes[@]}" -le "${on_mod_max_queue_depth}" ] ; then
+                        sibling_pid="${sub_processes[$(( ${#sub_processes[@]} - 1 ))]}"
+                        sibling_run_time="$(ps h -o etimes -p "${sibling_pid}")"
+                        delta=$(( on_mod_max_frequency - sibling_run_time))
+                        if [ "${delta}" -gt 0 ] ; then
+                            sleep "${delta}"
                         fi
+                        # Watch for sibling and run when it is stopped
+                        while kill -0 "${sibling_pid}" &> /dev/null ; do
+                            sleep 1
+                        done
+                        debug 7 "Running ${arguments} to refresh after ${on_mod_max_frequency} sec timeout with pid ${$}"
+                        ${arguments} "${mod_fs_object}"
                     else
-                        debug 10 "Discarding disabled refresh event"
+                        debug 10 "Discarding redundant/unwanted event since refresh is disabled or max queue depth has been reached"
                     fi
                 else
-                    debug 7 "Running ${arguments} with ${mod_fs_object} in subshell with pid ${$}"
+                    debug 7 "Running: ${arguments} with parameter: ${mod_fs_object} in subshell with pid ${$}"
                     ${arguments} "${mod_fs_object}"
                 fi
             ) &
-            eval "${debounce_name}"["${n}"]="${!}"
+            sub_processes+=("${!}")
         done
     done
 }
