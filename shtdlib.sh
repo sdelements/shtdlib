@@ -383,6 +383,67 @@ function exit_on_fail {
     fi
 }
 
+# Run the command/function provided in the first argument for all
+# files/directories provided in the susequent arguments. Will pass the relative
+# path to the modified object as a parameter to the command/function.
+# The on_mod_max_frequency variable can be overwritten to change the max frequency
+# in seconds the function/command will run (acts as a debounce), defaults to 1.
+# If set to 0 then multiple instances can run at the same time.
+# The on_mod_refresh variable determines if the function/command should be run
+# again at the end of the timeout if re-triggered during the previous run.
+# Modification includes the following FS events
+# MODIFY | CLOSE_WRITE
+# MOVED_TO | CREATE
+# MOVED_FROM | DELETE | MOVE_SELF
+# DELETE_SELF | UNMOUNT
+function add_on_mod {
+    local arguments=("${@}")
+    on_mod_refresh="${on_mod_refresh:-true}"
+    on_mod_max_frequency="${max_frequency:-10}"
+    for fs_object in "${arguments[@]:1}"; do
+        assert test -e "${fs_object}"
+        inotifywait --monitor --recursive --format '%f' "${fs_object}"\
+            --event 'modify' --event 'close_write'\
+            --event 'moved_to' --event 'create'\
+            --event 'moved_from' --event 'delete' --event 'move_self'\
+            --event 'delete_self' --event 'unmount' \
+            | while read -r mod_fs_object; do
+            local debounce_name="on_mod_${$}"
+            declare -xa "${debounce_name}"
+            declare -a 'debounce=("${!'"$debounce_name"'[@]}")'
+            #shellcheck disable=SC2154
+            local n="${#debounce[@]}"
+            for pid in "${!debounce_name[@]}" ; do
+                color_echo green "Processing pid: ${pid}"
+                kill -0 "${pid}"
+            done
+            (
+                debug 8 "Found ${n} elements in debounce array: ${debounce_name}"
+                debug 10 "${debounce_name} == ( ${debounce[*]} )"
+                if [ "${on_mod_max_frequency}" -gt 0 ] && [ "${n}" -gt 0 ] ; then
+                    if "${on_mod_refresh}" ; then
+                        #shellcheck disable=SC2004
+                        sibling_pid_element="${debounce_name}[$(( ${n} - 1 ))]"
+                        if kill -0 "${!sibling_pid_element}" &> /dev/null ; then
+                            debug 10 "Discarding redundant refresh event"
+                        else
+                            sleep "${on_mod_max_frequency}"
+                            debug 7 "Running ${arguments} to refresh after ${on_mod_max_frequency} sec timeout with pid ${$}"
+                            ${arguments} "${mod_fs_object}"
+                        fi
+                    else
+                        debug 10 "Discarding disabled refresh event"
+                    fi
+                else
+                    debug 7 "Running ${arguments} with ${mod_fs_object} in subshell with pid ${$}"
+                    ${arguments} "${mod_fs_object}"
+                fi
+            ) &
+            eval "${debounce_name}"["${n}"]="${!}"
+        done
+    done
+}
+
 # Traps for cleaning up on exit
 # Note that trap definition needs to happen here not inside the add_on_sig as
 # shown in the original since this can easily be called in a subshell in which
