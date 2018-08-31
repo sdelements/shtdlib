@@ -1656,11 +1656,11 @@ function ln_sf {
 
 # Create string of random characters
 #  - First param is length, default: 20
-#  - Second param is characters, default: A-Za-z0-9_
+#  - Second param is characters, default: A-Za-z0-9_ (Note: '-' is to specify range)
 gen_rand_chars() {
     local length="${1:-20}"
     local chars="${2:-A-Za-z0-9_}"
-    debug 10 "Creating a string of random characters of length ${length}"
+    debug 10 "Creating a string of random characters of length: ${length} and chars: ${chars}"
     LC_CTYPE=C tr -dc ${chars} < /dev/urandom | head -c ${length}
 }
 
