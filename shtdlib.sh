@@ -386,7 +386,7 @@ function exit_on_fail {
 # This function watches a set of files/directories and lets you run commands
 # when file system events (using inotifywait) are detected on them
 #  - Param 1: command/function to run
-#  - Param 2..N: files/directories to monitor. Note: Relative paths to the
+#  - Param 2..N: files/directories to monitor. Note: Absolute paths to the
 #               modified objects are passed to the command/function
 # Custom variables:
 #  - on_mod_max_frequency: the frequency, in seconds, to run command/function
@@ -403,18 +403,21 @@ function exit_on_fail {
 #  - MOVED_FROM | DELETE | MOVE_SELF
 #  - DELETE_SELF | UNMOUNT
 #
-# Example use:
-# Create a callback function and register it for events
+# Example use: Create a callback function and register it for events
+#
 # path_to_monitor="/tmp"
 # function callback {
-#     # Determine full path to modified object
-#     current_path="${PWD}"
-#     cd "${path_to_monitor}"
-#     full_path="$(readlink -m "${1}")"
-#     cd "${current_path}
-#     echo "Full path to changed file is: ${full_path}"
+#     modified_obj="${1}"
+#     modified_dir=$(dirname "${modified_obj}")
+#     modified_file=$(basename "${modified_obj}")
+#     current_dir="${PWD}"
+#     cd ${modified_dir}
+#     echo "Do something with '${modified_file}' in '${modified_dir}'"
+#     ls -la ${modified_file}
+#     cd ${current_dir}
 # }
 # add_on_mod callback "${path_to_monitor}"
+#
 function add_on_mod {
     assert whichs inotifywait
     local arguments=("${@}")
@@ -423,7 +426,7 @@ function add_on_mod {
     on_mod_max_queue_depth="${on_mod_max_queue_depth:-1}"
     for fs_object in "${arguments[@]:1}"; do
         assert test -e "${fs_object}"
-        inotifywait --monitor --recursive --format '%f' "${fs_object}"\
+        inotifywait --monitor --recursive --format '%w%f' "${fs_object}"\
             --event 'modify' --event 'close_write'\
             --event 'moved_to' --event 'create'\
             --event 'moved_from' --event 'delete' --event 'move_self'\
