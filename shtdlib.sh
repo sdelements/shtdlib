@@ -383,20 +383,29 @@ function exit_on_fail {
     fi
 }
 
-# Run the command/function provided in the first argument for all
-# files/directories provided in the susequent arguments. Will pass the relative
-# path to the modified object as a parameter to the command/function.
-# The on_mod_max_frequency variable can be overwritten to change the max frequency
-# in seconds the function/command will run (acts as a debounce), defaults to 1.
-# If set to 0 then multiple instances can run at the same time.
-# The on_mod_refresh variable determines if the function/command should be run
-# again at the end of the timeout if re-triggered during the previous run.
-# on_mod_max_queue_depth determines how many events should be queued up, defaults to 1
-# Modification includes the following FS events
-# MODIFY | CLOSE_WRITE
-# MOVED_TO | CREATE
-# MOVED_FROM | DELETE | MOVE_SELF
-# DELETE_SELF | UNMOUNT
+# This function watches a set of files/directories and lets you run commands
+# when file system events (using inotifywait) are detected on them
+#  - Param 1: command/function to run
+#  - Param 2..N: files/directories to monitor. Note: Relative paths to the
+#               modified objects are passed to the command/function
+# Custom variables:
+#  - on_mod_max_frequency: the frequency, in seconds, to run command/function
+#               (acts as a debounce). If set to 0 then multiple instances of
+#               the command/function can run at the same time. Default: 1s
+#  - on_mod_refresh: determines if command/function should run again at the end
+#               of the timeout if re-triggered during the previous run.
+#               Default: true
+#  - on_mod_max_queue_depth: determines event queue size. Default: 1 event
+#
+# File system modification events:
+#  - MODIFY | CLOSE_WRITE
+#  - MOVED_TO | CREATE
+#  - MOVED_FROM | DELETE | MOVE_SELF
+#  - DELETE_SELF | UNMOUNT
+#
+# Example use:
+# - FILL_ME_IN
+#
 function add_on_mod {
     local arguments=("${@}")
     on_mod_refresh="${on_mod_refresh:-true}"
@@ -419,8 +428,8 @@ function add_on_mod {
                     debug 10 "Contacted pid: ${pid}"
                     live_sub_processes+=("${pid}")
                 fi
-                sub_processes=("${live_sub_processes[@]}")
             done
+            sub_processes=("${live_sub_processes[@]}")
             # Fork a process to run the command
             (
                 debug 8 "Found ${#sub_processes[@]} elements in sub process array: ${sub_processes[*]}"
