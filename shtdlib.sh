@@ -416,6 +416,7 @@ function exit_on_fail {
 # }
 # add_on_mod callback "${path_to_monitor}"
 function add_on_mod {
+    assert whichs inotifywait
     local arguments=("${@}")
     on_mod_refresh="${on_mod_refresh:-true}"
     on_mod_max_frequency="${max_frequency:-1}"
