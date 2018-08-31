@@ -404,8 +404,17 @@ function exit_on_fail {
 #  - DELETE_SELF | UNMOUNT
 #
 # Example use:
-# - FILL_ME_IN
-#
+# Create a callback function and register it for events
+# path_to_monitor="/tmp"
+# function callback {
+#     # Determine full path to modified object
+#     current_path="${PWD}"
+#     cd "${path_to_monitor}"
+#     full_path="$(readlink -m "${1}")"
+#     cd "${current_path}
+#     echo "Full path to changed file is: ${full_path}"
+# }
+# add_on_mod callback "${path_to_monitor}"
 function add_on_mod {
     local arguments=("${@}")
     on_mod_refresh="${on_mod_refresh:-true}"
