@@ -60,7 +60,7 @@ os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
 if [ "${EUID}" == 0 ] && command -v virt-what &> /dev/null ; then
-    virt_platform="$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)"
+    virt_platform=$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)
 else
     virt_platform="Unknown"
 fi
@@ -227,17 +227,21 @@ function version_sort {
 
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
-# the index of the lowest version
+# the index of the lowest version. In the case of multiple matches, the lowest
+# (the first match) index is returned.
 # Example:
 # compare_versions '1.1.1 1.2.2test' -> returns 0 # True
 # compare_versions '1.2.2 1.1.1' -> returns 1 # False
 # compare_versions '1.0.0 1.1.1 2.2.2' -> returns 0 # True
-# compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' -> returns 4 # False but
-# also position
+# compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0 v5.0' -> returns 4 (False
+# but also position)
 function compare_versions {
-    versions=( ${@} )
+    items=( ${@} )
+    assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
-    return "$(($(printf "%s\\n" "${versions[@]}" | version_sort | grep "${versions[0]}" --line-number | awk -F: '{print $1}')-1))"
+    lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
+    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+    return $(( lowest_ver_line-1 ))
 }
 
 # Converts relative paths to full paths, ignores invalid paths
@@ -1506,10 +1510,12 @@ function inline_bash_source {
     local lines=${#source_file_array[@]}
     local i
     for (( i=1; i<lines+1; i++ )) ; do
-        local filename="$(echo "${source_file_array[${i}-1]}" | grep '^source ' | awk '{print $2}')"
+        local filename
+        filename="$(echo "${source_file_array[${i}-1]}" | grep '^source ' | awk '{print $2}')"
         if [ "${filename}" != "" ] ; then
             debug 10 "Found line with source instruction to file: ${filename}"
-            local relative_filename="$(dirname "${inline_source_file}")/$(basename "${filename}")"
+            local relative_filename
+            relative_filename="$(dirname "${inline_source_file}")/$(basename "${filename}")"
             if [ -f "${relative_filename}" ] ; then
                 filename="${relative_filename}"
             fi
@@ -1530,7 +1536,8 @@ function inline_bash_source {
                 inline_bash_source "${filename}" "${tmp_out_file}"
                 debug 10 "Mapping inlined tmp file ${tmp_out_file}"
                 mapfile -t sourced_file_array < "${tmp_out_file}"
-                local file_name_no_path="$(basename "${filename}")"
+                local file_name_no_path
+                file_name_no_path="$(basename "${filename}")"
                 local base_file_name="${file_name_no_path%.*}"
                 local combined_source_array=("${combined_source_array[@]}" \
                     "########## INLINED SOURCE FILE: \"${base_file_name}\" ##########" \
