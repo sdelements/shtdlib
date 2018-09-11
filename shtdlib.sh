@@ -423,18 +423,36 @@ function exit_on_fail {
 # add_on_mod callback "${path_to_monitor}"
 #
 function add_on_mod {
-    assert whichs inotifywait
+    if whichs inotifywait ; then
+        file_monitor_command="inotifywait --monitor --recursive --format %w%f
+                                   --event modify
+                                   --event close_write
+                                   --event moved_to
+                                   --event create
+                                   --event moved_from
+                                   --event delete
+                                   --event move_self
+                                   --event delete_self
+                                   --event unmount"
+    elif whichs fswatch ; then
+        file_monitor_command="fswatch  --recursive --format %p
+                                   --event Created
+                                   --event Updated
+                                   --event Removed
+                                   --event Renamed
+                                   --event MovedFrom
+                                   --event MovedTo"
+    else
+        color_echo red "Unable to find inotifywait or fswatch, please install one or the other before trying to use '${FUNCNAME[0]} ${*}'"
+        return 1
+    fi
     local arguments=("${@}")
     on_mod_refresh="${on_mod_refresh:-true}"
     on_mod_max_frequency="${max_frequency:-1}"
     on_mod_max_queue_depth="${on_mod_max_queue_depth:-1}"
     for fs_object in "${arguments[@]:1}"; do
         assert test -e "${fs_object}"
-        inotifywait --monitor --recursive --format '%w%f' "${fs_object}"\
-            --event 'modify' --event 'close_write'\
-            --event 'moved_to' --event 'create'\
-            --event 'moved_from' --event 'delete' --event 'move_self'\
-            --event 'delete_self' --event 'unmount' \
+        ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
             declare -a sub_processes
