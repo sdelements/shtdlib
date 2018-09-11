@@ -439,7 +439,7 @@ function add_on_mod {
                                    --event MovedFrom
                                    --event MovedTo"
     else
-        color_echo red "Unable to find inotifywait or fswatch, please install one or the other before trying to use ${0}"
+        color_echo red "Unable to find inotifywait or fswatch, please install one or the other before trying to use '${FUNCNAME[0]} ${*}'"
         return 1
     fi
     local arguments=("${@}")
