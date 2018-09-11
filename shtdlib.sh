@@ -233,8 +233,8 @@ function version_sort {
 # compare_versions '1.1.1 1.2.2test' -> returns 0 # True
 # compare_versions '1.2.2 1.1.1' -> returns 1 # False
 # compare_versions '1.0.0 1.1.1 2.2.2' -> returns 0 # True
-# compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0 v5.0' -> returns 4 (False
-# but also position)
+# compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0 v5.0' -> returns 4 (the
+# index number which also evaluates to False since its a non-zero return code)
 function compare_versions {
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
