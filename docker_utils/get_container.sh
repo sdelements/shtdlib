@@ -22,11 +22,12 @@ version='0.1'
 source "$(dirname "${0}")/../shtdlib.sh" &> /dev/null || ../shtdlib.sh &> /dev/null || source ./shtdlib.sh &> /dev/null || source shtdlib.sh
 
 # A helper function to ensure containers exist locally before launch
+# Requires three arguments, repo, path and tag
 function get_container {
-    debug 10 "get_container called with: ${*}"
+    debug 10 "${0} called with: ${*}"
     args=( "${@}" )
     if [ "${#args[@]}" -lt 3 ] ; then
-        color_echo red "${0} needs at least three arguments, none were provided"
+        color_echo red "${0} needs at least three arguments, repo, path and tag"
         return 64
     elif [ "${#args[@]}" -gt 1 ] ; then
         repo="${args[0]}"
