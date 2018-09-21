@@ -465,7 +465,6 @@ function add_on_mod {
                     live_sub_processes+=("${pid}")
                 fi
             done
-            set -u
             sub_processes=("${live_sub_processes[@]}")
             # Fork a process to run the command
             (
@@ -493,6 +492,7 @@ function add_on_mod {
                 fi
             ) &
             sub_processes+=("${!}")
+            set -u
         done
     done
 }
