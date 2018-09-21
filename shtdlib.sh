@@ -458,12 +458,16 @@ function add_on_mod {
             declare -a sub_processes
             # Remove stale pids from sub process array
             live_sub_processes=()
-            for pid in "${sub_processes[@]}" ; do
-                if kill -0 "${pid}" &> /dev/null ; then
-                    debug 10 "Contacted pid: ${pid}"
-                    live_sub_processes+=("${pid}")
-                fi
-            done
+            if [ "${#sub_processes[@]}" = 0 ]; then
+                debug 8 "Empty sub_process array. Continuing..."
+            else
+                for pid in "${sub_processes[@]}" ; do
+                    if kill -0 "${pid}" &> /dev/null ; then
+                        debug 10 "Contacted pid: ${pid}"
+                        live_sub_processes+=("${pid}")
+                    fi
+                done
+            fi
             sub_processes=("${live_sub_processes[@]}")
             # Fork a process to run the command
             (
