@@ -51,7 +51,7 @@ init_tty="$(tty || true)"
 OS="${OS:-}"
 os_family='Unknown'
 os_name='Unknown'
-os_code='Unknown'
+os_codename='Unknown'
 apt-get help > /dev/null 2>&1 && os_family='Debian'
 yum help help > /dev/null 2>&1 && os_family='RedHat'
 echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
@@ -61,7 +61,7 @@ os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
 if [ "${EUID}" == 0 ] && command -v virt-what &> /dev/null ; then
-    virt_platform="$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)"
+    virt_platform=$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)
 else
     virt_platform="Unknown"
 fi
@@ -85,13 +85,13 @@ if [ "${os_family}" == 'RedHat' ]; then
         os_name='redhat';
     fi
 elif [ "${os_family}" == 'Debian' ]; then
-    os_code="$(grep UBUNTU_CODENAME /etc/os-release | awk -F= '{print $2}')"
+    os_codename="$(grep UBUNTU_CODENAME /etc/os-release | awk -F= '{print $2}')"
     if [ -e '/etc/lsb-release' ] ; then
         major_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $1}')"
         minor_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $2}')"
         os_name="$(grep DISTRIB_ID /etc/lsb-release | awk -F= '{print $2}')"
         # For oses based on Ubuntu we often need the Ubuntu codename (e.g. repository configuration)
-        grep -q UBUNTU_CODENAME /etc/os-release && os_code="$(grep UBUNTU_CODENAME /etc/os-release | awk -F= '{print $2}')"
+        grep -q UBUNTU_CODENAME /etc/os-release && os_codename="$(grep UBUNTU_CODENAME /etc/os-release | awk -F= '{print $2}')"
     else
         major_version="$(awk -F. '{print $1}' /etc/debian_version)"
         minor_version="$(awk -F. '{print $2}' /etc/debian_version)"
