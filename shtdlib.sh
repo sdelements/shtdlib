@@ -213,7 +213,7 @@ function version_sort {
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
-        local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4.4n'
+        local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
 
     if [ "${#}" -eq 0 ] ; then
@@ -240,8 +240,32 @@ function compare_versions {
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
     return $(( lowest_ver_line-1 ))
+}
+
+# A function to toggle 'set -u' depending on the version of bash to guard
+# against a bug when catching unbound variable
+function toggle_unset_vars_check {
+    # Ensure we're using bash
+    if [ -n "${BASH_VERSION}" ]; then
+        # Only toggle for 4.0 < BASH_VERSION <= 4.3.x
+        if compare_versions "${BASH_VERSION}" "4.3.99" && compare_versions "4.0.0" "${BASH_VERSION}"; then
+            if [ "${1}" = "enable" ]; then
+                set -u
+                debug 10 "Unbound variable check enabled"
+            elif [ "${1}" = "disable" ]; then
+                set +u
+                debug 10 "Unbound variable check disabled"
+            else
+                color_echo red "No action taken, invalid action specified: '${1}'"
+            fi
+        else
+            debug 10 "No action taken, BASH_VERSION (${BASH_VERSION}) does not contain bug"
+        fi
+    else
+        debug 10 'No action taken, ${BASH_VERSION} unset'
+    fi
 }
 
 # Converts relative paths to full paths, ignores invalid paths
@@ -455,6 +479,7 @@ function add_on_mod {
         ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
+            toggle_unset_vars_check "disable"
             declare -a sub_processes
             # Remove stale pids from sub process array
             live_sub_processes=()
@@ -491,6 +516,7 @@ function add_on_mod {
                 fi
             ) &
             sub_processes+=("${!}")
+            toggle_unset_vars_check "enable"
         done
     done
 }
@@ -1626,13 +1652,13 @@ function get_env {
     declare -a env_files
     env_files=('/etc/environment' '/etc/profile')
     for env_file in "${env_files[@]}"; do
-	if [ -e "${env_file}" ]; then
-	    debug 10 "Sourcing ${env_file}"
+    if [ -e "${env_file}" ]; then
+        debug 10 "Sourcing ${env_file}"
             #shellcheck source=/dev/null
-	    source "${env_file}"
+        source "${env_file}"
         else
-	    debug 10 "Env file: ${env_file} not present"
-	fi
+        debug 10 "Env file: ${env_file} not present"
+    fi
     done
 }
 
@@ -1889,6 +1915,6 @@ function test_shtdlib()
 }
 
 # Test bash version
-if compare_versions "${BASH_VERSION}" 4 ; then
+if compare_versions "${BASH_VERSION}" "4" ; then
     debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
 fi
