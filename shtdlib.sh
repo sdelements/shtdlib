@@ -205,10 +205,21 @@ function readlink_m {
 }
 
 # A function to get the status of shell options supported by 'set'
-# Outputs: 'on', 'off' or nothing for invalid/empty option names
+# Returns: 0 for 'on', 1 for 'off', or 2 for invalid/empty option names
 function get_sh_opts {
     if [ -n "${1}" ]; then
-        shopt -o "${1}" 2> /dev/null | awk '{print $2}'
+        # This is to avoid using a subshell (subprocess preserves shell options)
+        local opt_status
+        mapfile -t opt_status < <(shopt -o "${1}" 2> /dev/null | awk '{print $2}')
+        debug 10 "get_sh_opts: '${1}' is set to '${opt_status}'"
+        if [ "${opt_status}" = "on" ]; then
+            return 0
+        elif [ "${opt_status}" = "off" ]; then
+            return 1
+        else
+            color_echo red "Invalid option status, '${opt_status}', for option '${1}'"
+            return 2
+        fi
     fi
 }
 
@@ -224,44 +235,39 @@ function toggle_sh_opt {
     if [ -n "${2}" ]; then
         if [[ ! ( "${2}" = "enable" || "${2}" = "disable" ) ]]; then
             color_echo red "Invalid action specified, '${2}'"
-            return
+            return 64
         fi
     fi
 
     # Ensure we're using bash
     if [ -n "${BASH_VERSION}" ]; then
-        # This is to avoid using a subshell (subprocess preserves shell options)
-        local opt_status
-        mapfile -t opt_status < <(get_sh_opts "${1}")
-
-        if [[ "${opt_status}" = ""  || ! ( "${opt_status}" = "on" || "${opt_status}" = "off" ) ]]; then
-            color_echo red "Invalid option status, '${opt_status}' for option '${1}'"
-            return 1
-        fi
-        debug 10 "Before toggle: '${1}' is set to '${opt_status}'"
-
-        case "${opt_status}" in
-        "on")
+        # Get current status for ${1}/option
+        get_sh_opts "${1}"
+        case "${?}" in
+        "0") #  'on'
             case "${2}" in
-            "disable")
-                shopt -uo "${1}"
-                debug 10 "After toggle: Unset '${1}'"
+            "enable")
+                debug 3 "No action taken, '${1}' is already set"
                 ;;
-            *)
-                color_echo yellow "No action taken, '${1}' is already set"
+            "disable" | "")
+                shopt -uo "${1}"
+                debug 3 "After toggle: Unset '${1}'"
                 ;;
             esac
             ;;
-        "off")
+        "1") #  'off'
             case "${2}" in
-            "enable")
+            "enable" | "")
                 shopt -so "${1}"
-                debug 10 "After toggle: Set '${1}'"
+                debug 3 "After toggle: Set '${1}'"
                 ;;
-            *)
-                color_echo yellow "No action taken, '${1}' is already unset"
+            "disable")
+                debug 3 "No action taken, '${1}' is already unset"
                 ;;
             esac
+            ;;
+        "2") # empty/invalid
+            return 1
             ;;
         esac
     else
