@@ -211,17 +211,108 @@ function readlink_m {
     fi
 }
 
+# A function to get the status of shell options supported by 'set'
+# Returns: 0 for 'on', 1 for 'off', or 2 for invalid/empty option names
+function get_sh_opts {
+    if [ -n "${1}" ]; then
+        # This is to avoid using a subshell (subprocess preserves shell options)
+        local opt_status
+        mapfile -t opt_status < <(shopt -o "${1}" 2> /dev/null | awk '{print $2}')
+        debug 10 "get_sh_opts: '${1}' is set to '${opt_status}'"
+        if [ "${opt_status}" = "on" ]; then
+            return 0
+        elif [ "${opt_status}" = "off" ]; then
+            return 1
+        else
+            color_echo red "Invalid option status, '${opt_status}', for option '${1}'"
+            return 2
+        fi
+    fi
+}
+
+# A function to toggle shell options in bash
+#  - Param 1: [REQUIRED] name of the option (from the 'set' builtin)
+#  - Param 2: [OPTIONAL] true to set, false to unset, or empty to toggle the
+#             option based on its current state
+function toggle_sh_opt {
+    # Make sure enough arguments are passed in
+    args=( ${@} )
+    assert [ ${#args[@]} -gt 0 ]
+    if [ -n "${2}" ]; then
+        if [[ ! ( "${2}" = true || "${2}" = false ) ]]; then
+            color_echo red "Invalid action specified, '${2}'"
+            return 64
+        fi
+    fi
+
+    # Ensure we're using bash
+    if [ -n "${BASH_VERSION}" ]; then
+        # Get current status for ${1}/option
+        get_sh_opts "${1}"
+        case "${?}" in
+        "0") #  'on'
+            case "${2}" in
+            true)
+                debug 3 "No action taken, '${1}' is already set"
+                ;;
+            false | "")
+                shopt -uo "${1}"
+                debug 3 "After toggle: Unset '${1}'"
+                ;;
+            esac
+            ;;
+        "1") #  'off'
+            case "${2}" in
+            true | "")
+                shopt -so "${1}"
+                debug 3 "After toggle: Set '${1}'"
+                ;;
+            false)
+                debug 3 "No action taken, '${1}' is already unset"
+                ;;
+            esac
+            ;;
+        "2") # empty/invalid
+            return 1
+            ;;
+        esac
+    else
+        debug 10 'No action taken, ${BASH_VERSION} unset'
+    fi
+}
+
+# A function to toggle 'set -u' depending on the version of bash to guard
+# against a bug when catching unbound variable
+#  - Param 1: [OPTIONAL] true to set, false to unset, or empty to toggle the
+#             option based on its current state
+function toggle_buggy_nounset {
+    # Ensure we're using bash
+    if [ -n "${BASH_VERSION}" ]; then
+        # Only toggle for 4.0 < BASH_VERSION <= 4.3.x
+        if compare_versions "${BASH_VERSION}" "4.3.99" && compare_versions "4.0.0" "${BASH_VERSION}"; then
+            toggle_sh_opt 'nounset' "${1}"
+        else
+            debug 10 "No action taken, BASH_VERSION (${BASH_VERSION}) does not contain bug"
+        fi
+    else
+        debug 10 'No action taken, ${BASH_VERSION} unset'
+    fi
+}
+
 # Platform independent version sort
 # When input is piped it's assumed to be newline (NL) delimited
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
+    # 'sort' doesn't properly handle SIGPIPE
+    toggle_sh_opt 'pipefail' 'false'
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
-        local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4.4n'
+        local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
+    toggle_sh_opt 'pipefail' 'true'
 
     if [ "${#}" -eq 0 ] ; then
         ${vsorter}
@@ -247,7 +338,12 @@ function compare_versions {
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+
+    # 'printf' doesn't properly handle SIGPIPE
+    toggle_sh_opt 'pipefail' 'false'
+    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+    toggle_sh_opt 'pipefail' 'true'
+
     return $(( lowest_ver_line-1 ))
 }
 
@@ -462,6 +558,7 @@ function add_on_mod {
         ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
+            toggle_buggy_nounset 'false'
             declare -a sub_processes
             # Remove stale pids from sub process array
             live_sub_processes=()
@@ -498,6 +595,7 @@ function add_on_mod {
                 fi
             ) &
             sub_processes+=("${!}")
+            toggle_buggy_nounset 'true'
         done
     done
 }
@@ -1896,6 +1994,6 @@ function test_shtdlib()
 }
 
 # Test bash version
-if compare_versions "${BASH_VERSION}" 4 ; then
+if compare_versions "${BASH_VERSION}" "4" ; then
     debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
 fi
