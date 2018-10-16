@@ -223,7 +223,6 @@ function get_sh_opts {
     fi
 }
 
-
 # A function to toggle shell options in bash
 #  - Param 1: [REQUIRED] name of the option (from the 'set' builtin)
 #  - Param 2: [OPTIONAL] true to set, false to unset, or empty to toggle the
