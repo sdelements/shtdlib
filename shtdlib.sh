@@ -204,17 +204,85 @@ function readlink_m {
     fi
 }
 
+# A function to get the status of shell options supported by 'set'
+# Outputs: 'on', 'off' or nothing for invalid/empty option names
+function get_sh_opts {
+    if [ -n "${1}" ]; then
+        shopt -o "${1}" 2> /dev/null | awk '{print $2}'
+    fi
+}
+
+
+# A function to toggle shell options in bash
+#  - Param 1: [REQUIRED] name of the option (from the 'set' builtin)
+#  - Param 2: [OPTIONAL] 'enable', 'disable' or empty/unset. If empty/unset,
+#             then the option will be toggled
+function toggle_sh_opt {
+    # Make sure enough arguments are passed in
+    args=( ${@} )
+    assert [ ${#args[@]} -gt 0 ]
+    if [ -n "${2}" ]; then
+        if [[ ! ( "${2}" = "enable" || "${2}" = "disable" ) ]]; then
+            color_echo red "Invalid action specified, '${2}'"
+            return
+        fi
+    fi
+
+    # Ensure we're using bash
+    if [ -n "${BASH_VERSION}" ]; then
+        # This is to avoid using a subshell (subprocess preserves shell options)
+        local opt_status
+        mapfile -t opt_status < <(get_sh_opts "${1}")
+
+        if [[ "${opt_status}" = ""  || ! ( "${opt_status}" = "on" || "${opt_status}" = "off" ) ]]; then
+            color_echo red "Invalid option status, '${opt_status}' for option '${1}'"
+            return 1
+        fi
+        debug 10 "Before toggle: '${1}' is set to '${opt_status}'"
+
+        case "${opt_status}" in
+        "on")
+            case "${2}" in
+            "disable")
+                shopt -uo "${1}"
+                debug 10 "After toggle: Unset '${1}'"
+                ;;
+            *)
+                color_echo yellow "No action taken, '${1}' is already set"
+                ;;
+            esac
+            ;;
+        "off")
+            case "${2}" in
+            "enable")
+                shopt -so "${1}"
+                debug 10 "After toggle: Set '${1}'"
+                ;;
+            *)
+                color_echo yellow "No action taken, '${1}' is already unset"
+                ;;
+            esac
+            ;;
+        esac
+    else
+        debug 10 'No action taken, ${BASH_VERSION} unset'
+    fi
+}
+
 # Platform independent version sort
 # When input is piped it's assumed to be newline (NL) delimited
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
+    # 'sort' doesn't properly handle SIGPIPE
+    toggle_sh_opt 'pipefail' 'disable'
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
+    toggle_sh_opt 'pipefail' 'enable'
 
     if [ "${#}" -eq 0 ] ; then
         ${vsorter}
@@ -240,26 +308,24 @@ function compare_versions {
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
+
+    # 'printf' doesn't properly handle SIGPIPE
+    toggle_sh_opt 'pipefail' 'disable'
     lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+    toggle_sh_opt 'pipefail' 'enable'
+
     return $(( lowest_ver_line-1 ))
 }
 
 # A function to toggle 'set -u' depending on the version of bash to guard
 # against a bug when catching unbound variable
+#  - Param 1: [REQUIRED] Toggle action, 'enable' or 'disable'
 function toggle_unset_vars_check {
     # Ensure we're using bash
     if [ -n "${BASH_VERSION}" ]; then
         # Only toggle for 4.0 < BASH_VERSION <= 4.3.x
         if compare_versions "${BASH_VERSION}" "4.3.99" && compare_versions "4.0.0" "${BASH_VERSION}"; then
-            if [ "${1}" = "enable" ]; then
-                set -u
-                debug 10 "Unbound variable check enabled"
-            elif [ "${1}" = "disable" ]; then
-                set +u
-                debug 10 "Unbound variable check disabled"
-            else
-                color_echo red "No action taken, invalid action specified: '${1}'"
-            fi
+            toggle_sh_opt 'nounset' "${1}"
         else
             debug 10 "No action taken, BASH_VERSION (${BASH_VERSION}) does not contain bug"
         fi
