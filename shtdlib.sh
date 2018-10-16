@@ -51,6 +51,7 @@ init_tty="$(tty || true)"
 OS="${OS:-}"
 os_family='Unknown'
 os_name='Unknown'
+os_codename='Unknown'
 apt-get help > /dev/null 2>&1 && os_family='Debian'
 yum help help > /dev/null 2>&1 && os_family='RedHat'
 echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
@@ -84,6 +85,12 @@ if [ "${os_family}" == 'RedHat' ]; then
         os_name='redhat';
     fi
 elif [ "${os_family}" == 'Debian' ]; then
+    if [ -e '/etc/os-release' ] ; then
+        # VERSION_CODENAME is the built-in optional identifier
+        grep -q VERSION_CODENAME /etc/os-release && os_codename="$(grep VERSION_CODENAME /etc/os-release | awk -F= '{print $2}')"
+        # For oses based on Ubuntu we often need the Ubuntu (parent distro) codename (e.g. repository configuration)
+        grep -q UBUNTU_CODENAME /etc/os-release && os_codename="$(grep UBUNTU_CODENAME /etc/os-release | awk -F= '{print $2}')"
+    fi
     if [ -e '/etc/lsb-release' ] ; then
         major_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $1}')"
         minor_version="$(grep DISTRIB_RELEASE /etc/lsb-release | awk -F= '{print $2}' | awk -F. '{print $2}')"
@@ -1724,13 +1731,13 @@ function get_env {
     declare -a env_files
     env_files=('/etc/environment' '/etc/profile')
     for env_file in "${env_files[@]}"; do
-    if [ -e "${env_file}" ]; then
-        debug 10 "Sourcing ${env_file}"
+        if [ -e "${env_file}" ]; then
+            debug 10 "Sourcing ${env_file}"
             #shellcheck source=/dev/null
-        source "${env_file}"
+            source "${env_file}"
         else
-        debug 10 "Env file: ${env_file} not present"
-    fi
+            debug 10 "Env file: ${env_file} not present"
+        fi
     done
 }
 
