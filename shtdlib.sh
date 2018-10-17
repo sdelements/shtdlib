@@ -160,15 +160,17 @@ function debug {
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@}" && return
+# To specify a different umask set the umask_decorator_mask variable to the
+# desired umask.
 function umask_decorator {
     if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
-        mask=0007
+        mask="${umask_decorator_mask:-0007}"
         original_mask="$(umask)"
         umask "${mask}"
         debug 10 "Set umask to ${mask}"
         #shellcheck disable=2068
         ${@}
-        original_umask "${mask}"
+        umask "${original_mask}"
         debug 10 "Set umask to ${original_mask}"
         return 0
     fi
