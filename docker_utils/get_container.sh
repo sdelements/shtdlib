@@ -26,17 +26,16 @@ source "$(dirname "${0}")/../shtdlib.sh" &> /dev/null || ../shtdlib.sh &> /dev/n
 function get_container {
     debug 10 "${0} called with: ${*}"
     args=( "${@}" )
-    if [ "${#args[@]}" -lt 3 ] ; then
+    if [ "${#args[@]}" -ne 3 ] ; then
         color_echo red "${0} needs at least three arguments, repo, path and tag"
         return 64
-    elif [ "${#args[@]}" -gt 1 ] ; then
-        repo="${args[0]}"
-        path="${args[1]}"
-        tag="${args[2]}"
     fi
-    mapfile -t available_versions < <( docker images "${repo}${path}*" --filter label=org.opencontainers.image.name --format "{{.Tag}}" | grep -v "<none>" ) 
+    repo="${args[0]}"
+    path="${args[1]}"
+    tag="${args[2]}"
+    mapfile -t available_versions < <( docker images "${repo}${path}*" --filter label=org.opencontainers.image.name --format '{{.Tag}}' | grep -v 'y<none>' )
     if ! in_array "${tag}" "${available_versions[@]:-}" ; then
-        color_echo yellow "Selected container (${repo}${path}:${tag}) not found, attempting pull from upstream repository"
+        color_echo cyan "Selected container (${repo}${path}:${tag}) not found, attempting pull from upstream repository"
         if docker pull "${repo}${path}:${tag}" ; then
             color_echo green 'Successfully pulled.'
         else
