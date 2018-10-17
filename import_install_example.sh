@@ -15,12 +15,9 @@ function install_lib {
     tmp_path="$(mktemp)"
 
     echo "Installing library ${lib_name} to ${lib_path}"
-    original_umask="$(umask)"
-    umask 0022
     download_lib "${tmp_path}"
     mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || return 1
     chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
-    umask "${original_umask}"
     # shellcheck disable=SC1091,SC1090
     source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
