@@ -157,6 +157,27 @@ function debug {
     fi
 }
 
+# Umask decorator, changes the umask for a function
+# To use this add a line like the following (without #) as the first line of a function
+# umask_decorator "${FUNCNAME[0]}" "${@}" && return
+# To specify a different umask set the umask_decorator_mask variable to the
+# desired umask.
+function umask_decorator {
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+        local mask="${umask_decorator_mask:-0007}"
+        local original_mask
+        original_mask="$(umask)"
+        umask "${mask}"
+        debug 10 "Set umask to ${mask}"
+        #shellcheck disable=2068
+        ${@}
+        umask "${original_mask}"
+        debug 10 "Set umask to ${original_mask}"
+        return 0
+    fi
+    return 1
+}
+
 # A platform (readlink implementation) neutral way to follow symlinks
 function readlink_m {
     debug 10 "readlink_m called with: ${*}"
