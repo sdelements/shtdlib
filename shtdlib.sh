@@ -164,7 +164,8 @@ function debug {
 # desired umask.
 function umask_decorator {
     if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
-        mask="${umask_decorator_mask:-0007}"
+        local mask="${umask_decorator_mask:-0007}"
+        local original_mask
         original_mask="$(umask)"
         umask "${mask}"
         debug 10 "Set umask to ${mask}"
