@@ -354,11 +354,13 @@ function compare_versions {
 # 4. Error message if command is not found, to ignore redirect stderr like
 # this:     print_version bash 2> /dev/null
 function print_version {
+    local error_msg
+    error_msg="${4:-Unable to find command ${1}}"
     if command -v "${1}" > /dev/null ; then
         echo "${2:-}"
         ${1} "${3:---version}"
     else
-        (>&2 echo "Unable to find command ${1}")
+        (>&2 echo "${error_msg}")
     fi
 }
 
