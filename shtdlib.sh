@@ -368,6 +368,23 @@ function compare_versions {
     return $(( lowest_ver_line-1 ))
 }
 
+# Prints the version of a command, accepts 1-4 parameters
+# 1. Full or relative path to command (required)
+# 2. Text to display before version info (optional)
+# 3. Flag/Argument to command to get version (optional, defaults to --version)
+# 4. Error message if command is not found, to ignore redirect stderr like
+# this:     print_version bash 2> /dev/null
+function print_version {
+    local error_msg
+    error_msg="${4:-Unable to find command ${1}}"
+    if command -v "${1}" > /dev/null ; then
+        echo "${2:-}"
+        ${1} "${3:---version}"
+    else
+        (>&2 echo "${error_msg}")
+    fi
+}
+
 # Converts relative paths to full paths, ignores invalid paths
 # Accepts either the path or name of a variable holding the path
 function finalize_path {
