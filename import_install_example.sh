@@ -31,7 +31,7 @@ function import_lib {
     # Search current dir and walk down to see if we can find the library in a
     # parent directory or sub directories of parent directories named lib/bin
     while true; do
-        pref_pattern=( "${full_path}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
+        pref_pattern=( "${full_path}/${lib_name}" "${full_path}/$(basename -s .sh "${lib_name}")/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
                 echo "Importing ${pref_lib}"
