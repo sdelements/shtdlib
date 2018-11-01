@@ -103,6 +103,7 @@ elif [ "${os_family}" == 'Debian' ]; then
 fi
 
 # Store local IP addresses (not localhost)
+# shellcheck disable=SC2046
 local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
 
 # Color Constants
@@ -159,7 +160,7 @@ function debug {
 
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
-# umask_decorator "${FUNCNAME[0]}" "${@}" && return
+# umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
 # To specify a different umask set the umask_decorator_mask variable to the
 # desired umask.
 function umask_decorator {
@@ -176,6 +177,64 @@ function umask_decorator {
         return 0
     fi
     return 1
+}
+
+# Bash behaviour option decorator
+# Allows changing/setting bash options for a command/function (code block) restoring
+# the original once it's been executed and it's calls are complete.
+# Requires an option name (see shopt) and a truthyness value "true"/"false" or
+# other command/function that returns 0/1. These are set using the variables
+# shopt_decorator_option_name and shopt_decorator_option_value
+# To use this add a line like the following (without #) as the first line of a function
+# Example:
+# function smarter_sort {
+#     # 'sort' doesn't properly handle SIGPIPE
+#     shopt_decorator_option_name='pipefail'
+#     shopt_decorator_option_value='false'
+#     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+#
+#     echo "Bash option pipefail is set to false for this code"
+# }
+function shopt_decorator {
+    if [ -n "${shopt_decorator_option_value:-}" ]  && [ -n "$(shopt -o "${shopt_decorator_option_name:-}")" ] ; then
+        if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+            if shopt -qo "${shopt_decorator_option_name}" ; then
+                # Option is set
+                if ! "${shopt_decorator_option_value}" ; then
+                    # Option should not be set
+                    debug 10 "Temporarily unsetting bash option ${shopt_decorator_option_name}"
+                    shopt -uo "${shopt_decorator_option_name}"
+                else
+                    debug 10 "No need to set ${shopt_decorator_option_name}, it's already ${shopt_decorator_option_value}"
+                fi
+                #shellcheck disable=2068
+                ${@}
+                # Set the option again in case it was unset
+                debug 10 "(Re)Setting ${shopt_decorator_option_name}"
+                shopt -so "${shopt_decorator_option_name}"
+                return 0
+            else
+                # Option is not set
+                if "${shopt_decorator_option_value}" ; then
+                    # Option should be set
+                    debug 10 "Temporarily setting bash option ${shopt_decorator_option_name}"
+                    shopt -so "${shopt_decorator_option_name}"
+                else
+                    debug 10 "No need to unset ${shopt_decorator_option_name}, it's already ${shopt_decorator_option_value}"
+                fi
+                #shellcheck disable=2068
+                ${@}
+                # Unset the option in case it was set
+                debug 10 "(Re)Unsetting ${shopt_decorator_option_name}"
+                shopt -uo "${shopt_decorator_option_name}"
+                return 0
+            fi
+        fi
+        return 1
+    else
+        color_echo red "Called ${FUNCNAME[*]} without setting required variables with valid option name/value. The variables shopt_decorator_option_name and shopt_decorator_option_value need to be set to a valid shopt option and a command/function that evaluates true/false, 'true'/'false' are valid commands"
+        exit 1
+    fi
 }
 
 # A platform (readlink implementation) neutral way to follow symlinks
@@ -232,108 +291,22 @@ function readlink_m {
     fi
 }
 
-# A function to get the status of shell options supported by 'set'
-# Returns: 0 for 'on', 1 for 'off', or 2 for invalid/empty option names
-function get_sh_opts {
-    if [ -n "${1}" ]; then
-        # This is to avoid using a subshell (subprocess preserves shell options)
-        local opt_status
-        mapfile -t opt_status < <(shopt -o "${1}" 2> /dev/null | awk '{print $2}')
-        debug 10 "get_sh_opts: '${1}' is set to '${opt_status}'"
-        if [ "${opt_status}" = "on" ]; then
-            return 0
-        elif [ "${opt_status}" = "off" ]; then
-            return 1
-        else
-            color_echo red "Invalid option status, '${opt_status}', for option '${1}'"
-            return 2
-        fi
-    fi
-}
-
-# A function to toggle shell options in bash
-#  - Param 1: [REQUIRED] name of the option (from the 'set' builtin)
-#  - Param 2: [OPTIONAL] true to set, false to unset, or empty to toggle the
-#             option based on its current state
-function toggle_sh_opt {
-    # Make sure enough arguments are passed in
-    args=( ${@} )
-    assert [ ${#args[@]} -gt 0 ]
-    if [ -n "${2}" ]; then
-        if [[ ! ( "${2}" = true || "${2}" = false ) ]]; then
-            color_echo red "Invalid action specified, '${2}'"
-            return 64
-        fi
-    fi
-
-    # Ensure we're using bash
-    if [ -n "${BASH_VERSION}" ]; then
-        # Get current status for ${1}/option
-        get_sh_opts "${1}"
-        case "${?}" in
-        "0") #  'on'
-            case "${2}" in
-            true)
-                debug 3 "No action taken, '${1}' is already set"
-                ;;
-            false | "")
-                shopt -uo "${1}"
-                debug 3 "After toggle: Unset '${1}'"
-                ;;
-            esac
-            ;;
-        "1") #  'off'
-            case "${2}" in
-            true | "")
-                shopt -so "${1}"
-                debug 3 "After toggle: Set '${1}'"
-                ;;
-            false)
-                debug 3 "No action taken, '${1}' is already unset"
-                ;;
-            esac
-            ;;
-        "2") # empty/invalid
-            return 1
-            ;;
-        esac
-    else
-        debug 10 'No action taken, ${BASH_VERSION} unset'
-    fi
-}
-
-# A function to toggle 'set -u' depending on the version of bash to guard
-# against a bug when catching unbound variable
-#  - Param 1: [OPTIONAL] true to set, false to unset, or empty to toggle the
-#             option based on its current state
-function toggle_buggy_nounset {
-    # Ensure we're using bash
-    if [ -n "${BASH_VERSION}" ]; then
-        # Only toggle for 4.0 < BASH_VERSION <= 4.3.x
-        if compare_versions "${BASH_VERSION}" "4.3.99" && compare_versions "4.0.0" "${BASH_VERSION}"; then
-            toggle_sh_opt 'nounset' "${1}"
-        else
-            debug 10 "No action taken, BASH_VERSION (${BASH_VERSION}) does not contain bug"
-        fi
-    else
-        debug 10 'No action taken, ${BASH_VERSION} unset'
-    fi
-}
-
 # Platform independent version sort
 # When input is piped it's assumed to be newline (NL) delimited
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
     # 'sort' doesn't properly handle SIGPIPE
-    toggle_sh_opt 'pipefail' 'false'
+    shopt_decorator_option_name='pipefail'
+    shopt_decorator_option_value='false'
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
-    toggle_sh_opt 'pipefail' 'true'
 
     if [ "${#}" -eq 0 ] ; then
         ${vsorter}
@@ -355,15 +328,16 @@ function version_sort {
 # compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0 v5.0' -> returns 4 (the
 # index number, which also evaluates to False since its a non-zero return code)
 function compare_versions {
+    # 'printf' doesn't properly handle SIGPIPE
+    shopt_decorator_option_name='pipefail'
+    shopt_decorator_option_value='false'
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-
-    # 'printf' doesn't properly handle SIGPIPE
-    toggle_sh_opt 'pipefail' 'false'
     lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
-    toggle_sh_opt 'pipefail' 'true'
 
     return $(( lowest_ver_line-1 ))
 }
@@ -564,6 +538,10 @@ function exit_on_fail {
 # add_on_mod callback "${path_to_monitor}"
 #
 function add_on_mod {
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
                                    --event modify
@@ -596,7 +574,6 @@ function add_on_mod {
         ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
-            toggle_buggy_nounset 'false'
             declare -a sub_processes
             # Remove stale pids from sub process array
             live_sub_processes=()
@@ -633,7 +610,6 @@ function add_on_mod {
                 fi
             ) &
             sub_processes+=("${!}")
-            toggle_buggy_nounset 'true'
         done
     done
 }
@@ -1315,15 +1291,17 @@ function create_dir_or_fail {
 # load_from_yaml /etc/custom.yaml puppet::mykey (additional keys can be follow)
 # example load_from_yaml example.yaml ':sources' ':base' "'remote'"
 function load_from_yaml {
+    # ruby doesn't properly handle SIGPIPE
+    shopt_decorator_option_name='pipefail'
+    shopt_decorator_option_value='false'
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
     if [ -r "${1}" ]; then
         ruby_yaml_parser="data = YAML::load(STDIN.read); puts data['${2}']"
         for key in "${@:3}" ; do
             ruby_yaml_parser+="[${key}]"
         done
-        set -o pipefail
-        #debug 10 "Using the following Yaml parser ${ruby_yaml_parser}"
         ruby -w0 -ryaml -e "${ruby_yaml_parser}" "${1}" 2> /dev/null | awk '{print $1}' || return 1
-        set +o pipefail
         return 0
     else
         return 1
@@ -1569,6 +1547,7 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
     # Handle appends
     elif ${append} ; then
         if [ "${ini_section}" != "" ]; then
+            #shellcheck disable=SC2086
             ini_section_match="$(${priv_esc_cmd} grep -c \"\[${ini_section}\]\" \"${filename}\")"
             if [ "${ini_section_match}" -lt 1 ]; then
                 echo -e '\n['"${ini_section}"']\n' | ${priv_esc_cmd} tee -a "${filename}" > /dev/null
@@ -1635,10 +1614,10 @@ function create_relative_archive {
     # Iterate this way to avoid whitespace filename bugs
     num_transformations=${#source_elements[@]}
     for (( i=1; i<num_transformations+1; i++ )) ; do
-        if [ -f ${source_elements[${i}-1]} ] ; then
-            pattern="$(dirname ${source_elements[${i}-1]} | cut -c 2-)"
+        if [ -f "${source_elements[${i}-1]}" ] ; then
+            pattern="$(dirname "${source_elements[${i}-1]}" | cut -c 2-)"
         else
-            pattern="$(echo ${source_elements[${i}-1]} | cut -c 2-)"
+            pattern="$(echo "${source_elements[${i}-1]}" | cut -c 2-)"
 
         fi
         transformations+=(" --transform=s,${pattern},,g")
@@ -1844,7 +1823,7 @@ function signal() {
         other_pids="$(pgrep -f -d ' ' "${1}")"
     fi
     if [ "${other_pids}" != "" ]; then
-        kill -s "${2}" ${other_pids}
+        kill -s "${2}" "${other_pids}"
         color_echo cyan "Signalled ${3} to PID(s): ${other_pids}"
     else
         debug 5 "Unable to find process '${1}' to signal"
@@ -1874,7 +1853,7 @@ function load_config()
             setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
             if echo "${@}" | grep -q "${setting_name}" ; then
-                export ${setting_name}="${setting_value}"
+                export "${setting_name}"="${setting_value}"
                 debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
             fi
         fi
@@ -1919,7 +1898,7 @@ gen_rand_chars() {
     local length="${1:-20}"
     local chars="${2:-A-Za-z0-9_}"
     debug 10 "Creating a string of random characters of length: ${length} and chars: ${chars}"
-    LC_CTYPE=C tr -dc ${chars} < /dev/urandom | head -c ${length}
+    LC_CTYPE=C tr -dc "${chars}" < '/dev/urandom' | head -c "${length}"
 }
 
 
@@ -1993,6 +1972,7 @@ function test_shtdlib()
     assert [ 0 -eq 0 ]
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
+    # shellcheck disable=SC1117
     assert in_array 'a' "${shtdlib_test_array[*]}" && color_echo cyan "\'a\' is in \'${shtdlib_test_array[*]}\'"
     orig_verbosity="${verbosity:-1}"
     verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
