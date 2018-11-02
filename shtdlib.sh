@@ -191,11 +191,12 @@ function umask_decorator {
 #     # 'sort' doesn't properly handle SIGPIPE
 #     shopt_decorator_option_name='pipefail'
 #     shopt_decorator_option_value='false'
-#     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+#     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
 #
 #     echo "Bash option pipefail is set to false for this code"
 # }
 function shopt_decorator {
+    debug 10 "${FUNCNAME} used with ${*}"
     if [ -n "${shopt_decorator_option_value:-}" ]  && [ -n "$(shopt -o "${shopt_decorator_option_name:-}")" ] ; then
         if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
             if shopt -qo "${shopt_decorator_option_name}" ; then
@@ -207,12 +208,13 @@ function shopt_decorator {
                 else
                     debug 10 "No need to set ${shopt_decorator_option_name}, it's already ${shopt_decorator_option_value}"
                 fi
-                #shellcheck disable=2068
-                ${@}
+                "${@}"
+                return_code="${?}"
+                debug 10 "Got return code ${return_code}"
                 # Set the option again in case it was unset
                 debug 10 "(Re)Setting ${shopt_decorator_option_name}"
                 shopt -so "${shopt_decorator_option_name}"
-                return 0
+                return ${return_code}
             else
                 # Option is not set
                 if "${shopt_decorator_option_value}" ; then
@@ -222,12 +224,13 @@ function shopt_decorator {
                 else
                     debug 10 "No need to unset ${shopt_decorator_option_name}, it's already ${shopt_decorator_option_value}"
                 fi
-                #shellcheck disable=2068
-                ${@}
+                "${@}"
+                return_code="${?}"
+                debug 10 "Got return code ${return_code}"
                 # Unset the option in case it was set
                 debug 10 "(Re)Unsetting ${shopt_decorator_option_name}"
                 shopt -uo "${shopt_decorator_option_name}"
-                return 0
+                return ${return_code}
             fi
         fi
         return 1
@@ -296,10 +299,17 @@ function readlink_m {
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
+    while read -rt 1 piped_data; do
+        debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        version_sort ${piped_data}
+        return ${?}
+    done
+    debug 10 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}"
 
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
@@ -308,13 +318,9 @@ function version_sort {
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
 
-    if [ "${#}" -eq 0 ] ; then
-        ${vsorter}
-    else
-        for arg in "${@}" ; do
-            echo "${arg}"
-        done | ${vsorter}
-    fi
+    for arg in "${@}" ; do
+        echo "${arg}"
+    done | ${vsorter}
 }
 
 # Returns the index number of the lowest version, in effect this means it
@@ -328,17 +334,18 @@ function version_sort {
 # compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0 v5.0' -> returns 4 (the
 # index number, which also evaluates to False since its a non-zero return code)
 function compare_versions {
+    debug 10 "${FUNCNAME} called with ${*}"
     # 'printf' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
 
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
     lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
-
+    debug 10 "${FUNCNAME} returning $(( lowest_ver_line-1 ))"
     return $(( lowest_ver_line-1 ))
 }
 
@@ -540,7 +547,7 @@ function exit_on_fail {
 function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
 
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
@@ -1294,7 +1301,7 @@ function load_from_yaml {
     # ruby doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
 
     if [ -r "${1}" ]; then
         ruby_yaml_parser="data = YAML::load(STDIN.read); puts data['${2}']"
