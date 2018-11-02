@@ -300,16 +300,16 @@ function readlink_m {
 # shellcheck disable=2120
 function version_sort {
     while read -rt 1 piped_data; do
+        declare -a piped_versions
         debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
         # shellcheck disable=2086
-        version_sort ${piped_data}
-        return ${?}
+        piped_versions+=( ${piped_data} )
     done
     debug 10 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}"
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
 
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
@@ -318,7 +318,7 @@ function version_sort {
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
 
-    for arg in "${@}" ; do
+    for arg in "${@}${piped_versions[@]}" ; do
         echo "${arg}"
     done | ${vsorter}
 }
