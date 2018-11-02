@@ -295,7 +295,7 @@ function readlink_m {
 }
 
 # Platform independent version sort
-# When input is piped it's assumed to be newline (NL) delimited
+# When input is piped it's assumed to be space and/or newline (NL) delimited
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
