@@ -186,7 +186,7 @@ function umask_decorator {
 # the original once it's been executed and it's calls are complete.
 # Requires an option name (see shopt) and a truthyness value "true"/"false" or
 # other command/function that returns 0/1. These are set using the variables
-# shopt_decorator_option_name and shopt_dcorator_option_value
+# shopt_decorator_option_name and shopt_decorator_option_value
 # To use this add a line like the following (without #) as the first line of a function
 # Example:
 # function smarter_sort {
