@@ -161,6 +161,8 @@ function debug {
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
+# umask_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with umask_decorator"
+
 # To specify a different umask set the umask_decorator_mask variable to the
 # desired umask.
 function umask_decorator {
@@ -184,14 +186,14 @@ function umask_decorator {
 # the original once it's been executed and it's calls are complete.
 # Requires an option name (see shopt) and a truthyness value "true"/"false" or
 # other command/function that returns 0/1. These are set using the variables
-# shopt_decorator_option_name and shopt_decorator_option_value
+# shopt_decorator_option_name and shopt_dcorator_option_value
 # To use this add a line like the following (without #) as the first line of a function
 # Example:
 # function smarter_sort {
 #     # 'sort' doesn't properly handle SIGPIPE
 #     shopt_decorator_option_name='pipefail'
 #     shopt_decorator_option_value='false'
-#     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
+#     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 #
 #     echo "Bash option pipefail is set to false for this code"
 # }
@@ -233,11 +235,14 @@ function shopt_decorator {
                 return ${return_code}
             fi
         fi
-        return 1
+        # Calling function is the decorator, skip
+        return 121
     else
         color_echo red "Called ${FUNCNAME[*]} without setting required variables with valid option name/value. The variables shopt_decorator_option_name and shopt_decorator_option_value need to be set to a valid shopt option and a command/function that evaluates true/false, 'true'/'false' are valid commands"
-        exit 1
+        exit 126
     fi
+    # We should never get here
+    exit 127
 }
 
 # A platform (readlink implementation) neutral way to follow symlinks
@@ -309,7 +314,7 @@ function version_sort {
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if sort --help | grep -q version-sort ; then
         local vsorter='sort --version-sort'
@@ -338,7 +343,7 @@ function compare_versions {
     # 'printf' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
@@ -509,6 +514,16 @@ function exit_on_fail {
     fi
 }
 
+# Fails/exits if the exit code of the last command does not match the one
+# specified in the first argument.
+# Example use:
+# touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
+function conditional_exit_on_fail {
+    if [ "${?}" != "${1}" ] ; then
+        exit_on_fail "${@}"
+    fi
+}
+
 # This function watches a set of files/directories and lets you run commands
 # when file system events (using inotifywait) are detected on them
 #  - Param 1: command/function to run
@@ -547,7 +562,7 @@ function exit_on_fail {
 function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
@@ -1301,7 +1316,7 @@ function load_from_yaml {
     # ruby doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return ${?}
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if [ -r "${1}" ]; then
         ruby_yaml_parser="data = YAML::load(STDIN.read); puts data['${2}']"
