@@ -304,6 +304,7 @@ function readlink_m {
 # When passed as parameters each one is processed independently
 # shellcheck disable=2120
 function version_sort {
+    # First command needs to be read, this way any piped input goes to it
     while read -rt 1 piped_data; do
         declare -a piped_versions
         debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
@@ -314,6 +315,7 @@ function version_sort {
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
+    # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if sort --help | grep -q version-sort ; then
@@ -343,6 +345,7 @@ function compare_versions {
     # 'printf' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
+    # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     items=( ${@} )
@@ -519,7 +522,8 @@ function exit_on_fail {
 # Example use:
 # touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
 function conditional_exit_on_fail {
-    if [ "${?}" != "${1}" ] ; then
+    valid_exit_codes=(0 "${1}")
+    if ! in_array  "${?}" "${valid_exit_codes[@]}" ; then
         exit_on_fail "${@}"
     fi
 }
@@ -562,6 +566,7 @@ function conditional_exit_on_fail {
 function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
+    # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if whichs inotifywait ; then
@@ -1316,6 +1321,7 @@ function load_from_yaml {
     # ruby doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
+    # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
     if [ -r "${1}" ]; then
@@ -1971,8 +1977,24 @@ alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 
 # Unit tests
-function test_shtdlib()
-{
+#
+# Short tests should be placed in the test_shtdlib function, longer and more
+# elaborated tests should be placed in their own functions and called from
+# test_shtlib
+
+# Test function to decorate
+function test_shopt_decorator {
+    shopt_decorator_option_name='pipefail'
+    shopt_decorator_option_value='true'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+    echo "${*}"
+    shopt -o pipefail
+    assert shopt -qo pipefail && color_echo green "Successfully decorated  ${FUNCNAME[0]} with pipefail"
+}
+
+# Primary Unit Test Function
+function test_shtdlib {
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
@@ -1989,13 +2011,16 @@ function test_shtdlib()
     color_echo magenta "Magenta"
     color_echo cyan "Cyan"
     color_echo blank "Blank"
+    # Test decorators
+    # shellcheck disable=2015
+    shopt -uo pipefail && test_shopt_decorator 'Hello World' || exit_on_fail
     assert true
     assert whichs ls
     assert [ 0 -eq 0 ]
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     # shellcheck disable=SC1117
-    assert in_array 'a' "${shtdlib_test_array[*]}" && color_echo cyan "\'a\' is in \'${shtdlib_test_array[*]}\'"
+    assert in_array 'a' "${shtdlib_test_array[@]}" && color_echo cyan "'a' is in '${shtdlib_test_array[*]}'"
     orig_verbosity="${verbosity:-1}"
     verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
     for ((i=1; i <= 11 ; i++)) ; do
@@ -2025,9 +2050,9 @@ function test_shtdlib()
 
     # Test version comparison
     assert compare_versions '1.1.1 1.2.2test'
-    assert ! compare_versions '1.2.2 1.1.1'
-    assert compare_versions '1.0.0 1.1.1 2.2.2'
-    assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0')" == '4' ]
+    assert [ "$(compare_versions '1.2.2 1.1.1'; echo "${?}")" == '1' ]
+    assert  compare_versions '1.0.0 1.1.1 2.2.2'
+    assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
 
     # Test resolving domain names
     assert [ "$(resolve_domain_name example.com)" == '93.184.216.34' ]
