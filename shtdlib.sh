@@ -322,6 +322,10 @@ function version_sort {
         # shellcheck disable=2086
         piped_versions+=( ${piped_data} )
     done
+    _version_sort "${@}" "${piped_versions[@]}"
+}
+
+function _version_sort {
     debug 10 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
@@ -336,7 +340,7 @@ function version_sort {
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
 
-    for arg in "${@}${piped_versions[@]}" ; do
+    for arg in "${@}" ; do
         echo "${arg}"
     done | ${vsorter}
 }
@@ -1779,6 +1783,14 @@ function slugify {
 }
 
 # Converts a string to upper case
+function _upper {
+    local string="${*}"
+    if compare_versions "4" "${BASH_VERSION}" ; then
+        echo "${string^^}"
+    else
+        echo "${string}" | tr '[:lower:]' '[:upper:]'
+    fi
+}
 function upper {
     # First command needs to be read, this way any piped input goes to it
     while read -rt "${read_timeout:-1}" piped_data; do
@@ -1787,15 +1799,18 @@ function upper {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-    local string="${*}${piped_string[*]}"
-    if compare_versions "4" "${BASH_VERSION}" ; then
-        echo "${string^^}"
-    else
-       echo "${*}${string}" | tr '[:lower:]' '[:upper:]'
-    fi
+    _upper "${*}${piped_string[*]}"
 }
 
 # Converts a string to lower case
+function _lower {
+    local string="${*}"
+    if compare_versions "4" "${BASH_VERSION}"  ; then
+        echo "${string,,}"
+    else
+        echo "${string}" | tr '[:upper:]' '[:lower:]'
+    fi
+}
 function lower {
     # First command needs to be read, this way any piped input goes to it
     while read -rt "${read_timeout:-1}" piped_data; do
@@ -1804,12 +1819,7 @@ function lower {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-    local string="${*}${piped_string[*]}"
-    if compare_versions "4" "${BASH_VERSION}"  ; then
-        echo "${string,,}"
-    else
-       echo "${string}" | tr '[:upper:]' '[:lower:]'
-    fi
+    _lower "${*}${piped_string[*]}"
 }
 
 # Load default login environment
