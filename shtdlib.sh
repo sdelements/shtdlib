@@ -355,7 +355,6 @@ function assert {
   fi
 }
 
-
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
 # the index of the lowest version. In the case of multiple matches, the lowest
@@ -383,18 +382,18 @@ function compare_versions {
     return $(( lowest_ver_line-1 ))
 }
 
-# Set timeout value to use for read, v3 does not support decimal seconds
-if "${bash_pre_v4}" ; then
-    read_timeout='1'
-else
-    read_timeout='0.1'
-fi
-
 # Set conveniece variable for bash v4 compat
 if compare_versions "${BASH_VERSION}" "4" ; then
     bash_pre_v4=true
 else
     bash_pre_v4=false
+fi
+
+# Set timeout value to use for read, v3 does not support decimal seconds
+if "${bash_pre_v4}" ; then
+    read_timeout='1'
+else
+    read_timeout='0.1'
 fi
 
 # Prints the version of a command, accepts 1-4 parameters
