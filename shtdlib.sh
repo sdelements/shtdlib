@@ -1779,7 +1779,7 @@ function upper {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-
+    declare -a piped_string
     if compare_versions "4" "${BASH_VERSION}" ; then
         echo "${*^^}${piped_string^^}"
     else
@@ -1796,7 +1796,7 @@ function lower {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-
+    declare -a piped_string
     if compare_versions "4" "${BASH_VERSION}"  ; then
         echo "${*,,}${piped_string,,}"
     else
