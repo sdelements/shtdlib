@@ -345,6 +345,17 @@ function _version_sort {
     done | ${vsorter}
 }
 
+# Allows clear assert syntax
+function assert {
+  debug 10 "Assertion made: ${*}"
+  # shellcheck disable=SC2068
+  if ! "${@}" ; then
+    color_echo red "Assertion failed: '${*}'"
+    exit_on_fail
+  fi
+}
+
+
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
 # the index of the lowest version. In the case of multiple matches, the lowest
@@ -437,16 +448,6 @@ fi
 
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
-
-# Allows clear assert syntax
-function assert {
-  debug 10 "Assertion made: ${*}"
-  # shellcheck disable=SC2068
-  if ! "${@}" ; then
-    color_echo red "Assertion failed: '${*}'"
-    exit_on_fail
-  fi
-}
 
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
