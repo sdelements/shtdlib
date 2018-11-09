@@ -26,7 +26,7 @@ function install_lib {
 # Library import function, accepts one optional parameter, name of the file to import
 # shellcheck disable=SC2120,SC2119
 function import_lib {
-    lib_name="${1:-'shtdlib.sh'}"
+    lib_name="${1:-shtdlib.sh}"
     full_path="$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || realpath "${BASH_SOURCE[0]}" 2> /dev/null || greadlink -f "${BASH_SOURCE[1]}" 2> /dev/null:-"${0}")"
     # Search current dir and walk down to see if we can find the library in a
     # parent directory or sub directories of parent directories named lib/bin

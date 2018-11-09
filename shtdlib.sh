@@ -1779,11 +1779,11 @@ function upper {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-    declare -a piped_string
+    local string="${*}${piped_string[*]}"
     if compare_versions "4" "${BASH_VERSION}" ; then
-        echo "${*^^}${piped_string^^}"
+        echo "${string^^}"
     else
-       echo "${*}${piped_string}" | tr '[:lower:]' '[:upper:]'
+       echo "${*}${string}" | tr '[:lower:]' '[:upper:]'
     fi
 }
 
@@ -1796,11 +1796,11 @@ function lower {
         # shellcheck disable=2086
         piped_string+=( ${piped_data} )
     done
-    declare -a piped_string
+    local string="${*}${piped_string[*]}"
     if compare_versions "4" "${BASH_VERSION}"  ; then
-        echo "${*,,}${piped_string,,}"
+        echo "${string,,}"
     else
-       echo "${*}${piped_string}" | tr '[:upper:]' '[:lower:]'
+       echo "${string}" | tr '[:upper:]' '[:lower:]'
     fi
 }
 
