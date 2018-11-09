@@ -158,6 +158,17 @@ function debug {
     fi
 }
 
+# Fails/exits if the exit code of the last command does not match the one
+# specified in the first argument.
+# Example use:
+# touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
+function conditional_exit_on_fail {
+    valid_exit_codes=(0 "${1}")
+    if ! in_array  "${?}" "${valid_exit_codes[@]}" ; then
+        exit_on_fail "${@}"
+    fi
+}
+
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
@@ -305,7 +316,7 @@ function readlink_m {
 # shellcheck disable=2120
 function version_sort {
     # First command needs to be read, this way any piped input goes to it
-    while read -rt 1 piped_data; do
+    while read -rt "${read_timeout:-1}" piped_data; do
         declare -a piped_versions
         debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
         # shellcheck disable=2086
@@ -356,6 +367,14 @@ function compare_versions {
     debug 10 "${FUNCNAME} returning $(( lowest_ver_line-1 ))"
     return $(( lowest_ver_line-1 ))
 }
+
+# Set timeout value to use for read, v3 does not support decimal seconds
+if compare_versions "4" "${BASH_VERSION}" ; then
+    read_timeout='0.1'
+else
+    read_timeout='1'
+fi
+
 
 # Prints the version of a command, accepts 1-4 parameters
 # 1. Full or relative path to command (required)
@@ -514,17 +533,6 @@ function exit_on_fail {
     # Exit if we are running as a script
     if [ -f "${script_full_path}" ]; then
         exit 1
-    fi
-}
-
-# Fails/exits if the exit code of the last command does not match the one
-# specified in the first argument.
-# Example use:
-# touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
-function conditional_exit_on_fail {
-    valid_exit_codes=(0 "${1}")
-    if ! in_array  "${?}" "${valid_exit_codes[@]}" ; then
-        exit_on_fail "${@}"
     fi
 }
 
@@ -1773,7 +1781,7 @@ function slugify {
 # Converts a string to upper case
 function upper {
     # First command needs to be read, this way any piped input goes to it
-    while read -rt 1 piped_data; do
+    while read -rt "${read_timeout:-1}" piped_data; do
         declare -a piped_string
         debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
         # shellcheck disable=2086
@@ -1790,7 +1798,7 @@ function upper {
 # Converts a string to lower case
 function lower {
     # First command needs to be read, this way any piped input goes to it
-    while read -rt 1 piped_data; do
+    while read -rt "${read_timeout:-1}" piped_data; do
         declare -a piped_string
         debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
         # shellcheck disable=2086
