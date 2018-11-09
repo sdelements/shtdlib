@@ -1770,6 +1770,40 @@ function slugify {
     echo "${*}" | sed -e 's/[^[:alnum:]._\-]/_/g' | tr -s '-' | tr '[:upper:]' '[:lower:]'
 }
 
+# Converts a string to upper case
+function upper {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt 1 piped_data; do
+        declare -a piped_string
+        debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_string+=( ${piped_data} )
+    done
+
+    if compare_versions "4" "${BASH_VERSION}" ; then
+        echo "${*^^}${piped_string^^}"
+    else
+       echo "${*}${piped_string}" | tr '[:lower:]' '[:upper:]'
+    fi
+}
+
+# Converts a string to lower case
+function lower {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt 1 piped_data; do
+        declare -a piped_string
+        debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_string+=( ${piped_data} )
+    done
+
+    if compare_versions "4" "${BASH_VERSION}"  ; then
+        echo "${*,,}${piped_string,,}"
+    else
+       echo "${*}${piped_string}" | tr '[:upper:]' '[:lower:]'
+    fi
+}
+
 # Load default login environment
 function get_env {
     # Load all default settings, including proxy, etc
