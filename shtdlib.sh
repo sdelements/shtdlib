@@ -384,12 +384,18 @@ function compare_versions {
 }
 
 # Set timeout value to use for read, v3 does not support decimal seconds
-if compare_versions "4" "${BASH_VERSION}" ; then
-    read_timeout='0.1'
-else
+if "${bash_pre_v4}" ; then
     read_timeout='1'
+else
+    read_timeout='0.1'
 fi
 
+# Set conveniece variable for bash v4 compat
+if compare_versions "${BASH_VERSION}" "4" ; then
+    bash_pre_v4=true
+else
+    bash_pre_v4=false
+fi
 
 # Prints the version of a command, accepts 1-4 parameters
 # 1. Full or relative path to command (required)
@@ -1786,10 +1792,10 @@ function slugify {
 # Converts a string to upper case
 function _upper {
     local string="${*}"
-    if compare_versions "4" "${BASH_VERSION}" ; then
-        echo "${string^^}"
-    else
+    if "${bash_pre_v4}" ; then
         echo "${string}" | tr '[:lower:]' '[:upper:]'
+    else
+        echo "${string^^}"
     fi
 }
 function upper {
@@ -1806,10 +1812,10 @@ function upper {
 # Converts a string to lower case
 function _lower {
     local string="${*}"
-    if compare_versions "4" "${BASH_VERSION}"  ; then
-        echo "${string,,}"
-    else
+    if "${bash_pre_v4}" ; then
         echo "${string}" | tr '[:upper:]' '[:lower:]'
+    else
+        echo "${string,,}"
     fi
 }
 function lower {
@@ -2112,6 +2118,6 @@ function test_shtdlib {
 }
 
 # Test bash version
-if compare_versions "${BASH_VERSION}" "4" ; then
+if "${bash_pre_v4}" ; then
     debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
 fi
