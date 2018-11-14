@@ -408,18 +408,22 @@ else
     read_timeout='0.1'
 fi
 
-# Prints the version of a command, accepts 1-4 parameters
+# Prints the version of a command, arguments include:
 # 1. Full or relative path to command (required)
 # 2. Text to display before version info (optional)
-# 3. Flag/Argument to command to get version (optional, defaults to --version)
-# 4. Error message if command is not found, to ignore redirect stderr like
-# this:     print_version bash 2> /dev/null
+# 3+. Flag(s)/Argument(s) to command to get version (optional, defaults to --version)
+# error_msg variable: Error message if command is not found, to ignore redirect
+# stderr run this like so:    print_version bash 2> /dev/null
 function print_version {
     local error_msg
     error_msg="${4:-Unable to find command ${1}}"
     if command -v "${1}" > /dev/null ; then
-        echo "${2:-}"
-        ${1} "${3:---version}"
+        echo -n "${2:-}"
+        if [ -n "${3}" ] ; then
+            ${1} "${@:3}"
+        else
+            ${1} --version
+        fi
     else
         (>&2 echo "${error_msg}")
     fi
