@@ -313,18 +313,6 @@ function readlink_m {
 # Platform independent version sort
 # When input is piped it's assumed to be space and/or newline (NL) delimited
 # When passed as parameters each one is processed independently
-# shellcheck disable=2120
-function version_sort {
-    # First command needs to be read, this way any piped input goes to it
-    while read -rt "${read_timeout:-1}" piped_data; do
-        declare -a piped_versions
-        debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
-        # shellcheck disable=2086
-        piped_versions+=( ${piped_data} )
-    done
-    _version_sort "${@}" "${piped_versions[@]}"
-}
-
 function _version_sort {
     debug 10 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
@@ -343,6 +331,17 @@ function _version_sort {
     for arg in "${@}" ; do
         echo "${arg}"
     done | ${vsorter}
+}
+# shellcheck disable=2120
+function version_sort {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt "${read_timeout:-1}" piped_data; do
+        declare -a piped_versions
+        debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_versions+=( ${piped_data} )
+    done
+    _version_sort "${@}" "${piped_versions[@]}"
 }
 
 # Allows clear assert syntax
