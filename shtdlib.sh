@@ -359,6 +359,14 @@ function assert {
   fi
 }
 
+# A bash only version of basename -s
+function basename_s {
+    local path="${*}"
+    local path_no_ext="${path%.*}"
+    local basename="${path_no_ext##*/}"
+    echo "${basename}"
+}
+
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
 # the index of the lowest version. In the case of multiple matches, the lowest
