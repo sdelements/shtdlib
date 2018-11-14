@@ -345,7 +345,8 @@ function version_sort {
     shopt_decorator_option_value='false'
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
-    _version_sort "${@}" "${piped_versions[@]}"
+    # shellcheck disable=2068
+    _version_sort ${@} ${piped_versions[@]}
 }
 
 # Allows clear assert syntax
