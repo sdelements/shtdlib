@@ -416,7 +416,7 @@ fi
 # stderr run this like so:    print_version bash 2> /dev/null
 function print_version {
     local error_msg
-    error_msg="${4:-Unable to find command ${1}}"
+    error_msg="${error_msg:-Unable to find command ${1}}"
     if command -v "${1}" > /dev/null ; then
         echo -n "${2:-}"
         if [ -n "${3}" ] ; then
@@ -2059,7 +2059,7 @@ alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 # Test function to decorate
 function test_shopt_decorator {
     shopt_decorator_option_name='pipefail'
-    shopt_decorator_option_value='true'
+    shopt_decorator_option_value=true
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     echo "${*}"
