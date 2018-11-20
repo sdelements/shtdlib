@@ -158,6 +158,17 @@ function debug {
     fi
 }
 
+# Fails/exits if the exit code of the last command does not match the one
+# specified in the first argument.
+# Example use:
+# touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
+function conditional_exit_on_fail {
+    valid_exit_codes=(0 "${1}")
+    if ! in_array  "${?}" "${valid_exit_codes[@]}" ; then
+        exit_on_fail "${@}"
+    fi
+}
+
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
@@ -302,15 +313,7 @@ function readlink_m {
 # Platform independent version sort
 # When input is piped it's assumed to be space and/or newline (NL) delimited
 # When passed as parameters each one is processed independently
-# shellcheck disable=2120
-function version_sort {
-    # First command needs to be read, this way any piped input goes to it
-    while read -rt 1 piped_data; do
-        declare -a piped_versions
-        debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
-        # shellcheck disable=2086
-        piped_versions+=( ${piped_data} )
-    done
+function _version_sort {
     debug 10 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
@@ -325,9 +328,43 @@ function version_sort {
         local vsorter='sort -t. -k1,1n -k2,2n -k3,3n -k4,4n'
     fi
 
-    for arg in "${@}${piped_versions[@]}" ; do
+    for arg in "${@}" ; do
         echo "${arg}"
     done | ${vsorter}
+}
+# shellcheck disable=2120
+function version_sort {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt "${read_timeout:-1}" piped_data; do
+        declare -a piped_versions
+        debug 10 "Versions piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_versions+=( ${piped_data} )
+    done
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+    # shellcheck disable=2068
+    _version_sort ${@} ${piped_versions[@]}
+}
+
+# Allows clear assert syntax
+function assert {
+  debug 10 "Assertion made: ${*}"
+  # shellcheck disable=SC2068
+  if ! "${@}" ; then
+    color_echo red "Assertion failed: '${*}'"
+    exit_on_fail
+  fi
+}
+
+# A bash only version of basename -s
+function basename_s {
+    local path="${*}"
+    local path_no_ext="${path%.*}"
+    local basename="${path_no_ext##*/}"
+    echo "${basename}"
 }
 
 # Returns the index number of the lowest version, in effect this means it
@@ -357,18 +394,36 @@ function compare_versions {
     return $(( lowest_ver_line-1 ))
 }
 
-# Prints the version of a command, accepts 1-4 parameters
+# Set conveniece variable for bash v4 compat
+if compare_versions "${BASH_VERSION}" "4" ; then
+    bash_pre_v4=true
+else
+    bash_pre_v4=false
+fi
+
+# Set timeout value to use for read, v3 does not support decimal seconds
+if "${bash_pre_v4}" ; then
+    read_timeout='1'
+else
+    read_timeout='0.1'
+fi
+
+# Prints the version of a command, arguments include:
 # 1. Full or relative path to command (required)
 # 2. Text to display before version info (optional)
-# 3. Flag/Argument to command to get version (optional, defaults to --version)
-# 4. Error message if command is not found, to ignore redirect stderr like
-# this:     print_version bash 2> /dev/null
+# 3+. Flag(s)/Argument(s) to command to get version (optional, defaults to --version)
+# error_msg variable: Error message if command is not found, to ignore redirect
+# stderr run this like so:    print_version bash 2> /dev/null
 function print_version {
     local error_msg
-    error_msg="${4:-Unable to find command ${1}}"
+    error_msg="${error_msg:-Unable to find command ${1}}"
     if command -v "${1}" > /dev/null ; then
-        echo "${2:-}"
-        ${1} "${3:---version}"
+        echo -n "${2:-}"
+        if [ -n "${3}" ] ; then
+            ${1} "${@:3}"
+        else
+            ${1} --version
+        fi
     else
         (>&2 echo "${error_msg}")
     fi
@@ -414,16 +469,6 @@ fi
 
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
-
-# Allows clear assert syntax
-function assert {
-  debug 10 "Assertion made: ${*}"
-  # shellcheck disable=SC2068
-  if ! "${@}" ; then
-    color_echo red "Assertion failed: '${*}'"
-    exit_on_fail
-  fi
-}
 
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
@@ -514,17 +559,6 @@ function exit_on_fail {
     # Exit if we are running as a script
     if [ -f "${script_full_path}" ]; then
         exit 1
-    fi
-}
-
-# Fails/exits if the exit code of the last command does not match the one
-# specified in the first argument.
-# Example use:
-# touch /tmp/test_file || conditional_exit_on_fail 128 "Failed to create tmp file and touch did not return 128"
-function conditional_exit_on_fail {
-    valid_exit_codes=(0 "${1}")
-    if ! in_array  "${?}" "${valid_exit_codes[@]}" ; then
-        exit_on_fail "${@}"
     fi
 }
 
@@ -1770,6 +1804,46 @@ function slugify {
     echo "${*}" | sed -e 's/[^[:alnum:]._\-]/_/g' | tr -s '-' | tr '[:upper:]' '[:lower:]'
 }
 
+# Converts a string to upper case
+function _upper {
+    local string="${*}"
+    if "${bash_pre_v4}" ; then
+        echo "${string}" | tr '[:lower:]' '[:upper:]'
+    else
+        echo "${string^^}"
+    fi
+}
+function upper {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt "${read_timeout:-1}" piped_data; do
+        declare -a piped_string
+        debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_string+=( ${piped_data} )
+    done
+    _upper "${*}${piped_string[*]}"
+}
+
+# Converts a string to lower case
+function _lower {
+    local string="${*}"
+    if "${bash_pre_v4}" ; then
+        echo "${string}" | tr '[:upper:]' '[:lower:]'
+    else
+        echo "${string,,}"
+    fi
+}
+function lower {
+    # First command needs to be read, this way any piped input goes to it
+    while read -rt "${read_timeout:-1}" piped_data; do
+        declare -a piped_string
+        debug 10 "String piped to ${FUNCNAME}: ${piped_data}"
+        # shellcheck disable=2086
+        piped_string+=( ${piped_data} )
+    done
+    _lower "${*}${piped_string[*]}"
+}
+
 # Load default login environment
 function get_env {
     # Load all default settings, including proxy, etc
@@ -1985,7 +2059,7 @@ alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 # Test function to decorate
 function test_shopt_decorator {
     shopt_decorator_option_name='pipefail'
-    shopt_decorator_option_value='true'
+    shopt_decorator_option_value=true
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     echo "${*}"
@@ -2059,6 +2133,6 @@ function test_shtdlib {
 }
 
 # Test bash version
-if compare_versions "${BASH_VERSION}" "4" ; then
+if "${bash_pre_v4}" ; then
     debug 9 "Detected bash version ${BASH_VERSION}, for optimal results we suggest using bash V4 or later"
 fi

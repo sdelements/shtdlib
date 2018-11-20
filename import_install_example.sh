@@ -31,11 +31,13 @@ function install_lib {
 # shellcheck disable=SC2120,SC2119
 function import_lib {
     lib_name="${1:-${default_library_name}}"
+    lib_no_ext="${lib_name%.*}"
+    lib_basename_s="${lib_no_ext##*/}"
     full_path="$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || realpath "${BASH_SOURCE[0]}" 2> /dev/null || greadlink -f "${BASH_SOURCE[1]}" 2> /dev/null:-"${0}")"
     # Search current dir and walk down to see if we can find the library in a
     # parent directory or sub directories of parent directories named lib/bin
     while true; do
-        pref_pattern=( "${full_path}/${lib_name}" "${full_path}/$(basename -s .sh "${lib_name}")/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
+        pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
                 echo "Importing ${pref_lib}"
@@ -60,4 +62,3 @@ function import_lib {
 # Import the shell standard library
 # shellcheck disable=SC2119
 import_lib
-
