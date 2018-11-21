@@ -1996,13 +1996,44 @@ function ln_sf {
 # Create string of random characters
 #  - First param is length, default: 20
 #  - Second param is characters, default: A-Za-z0-9_ (Note: '-' specifies range)
-gen_rand_chars() {
+function gen_rand_chars {
+    shopt_decorator_option_name='pipefail'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
     local length="${1:-20}"
     local chars="${2:-A-Za-z0-9_}"
     debug 10 "Creating a string of random characters of length: ${length} and chars: ${chars}"
     LC_CTYPE=C tr -dc "${chars}" < '/dev/urandom' | head -c "${length}"
 }
 
+# Checks if an environtment variable is set and contains a string longer than
+# 0, if not then it's set to a random value.
+# If a file name/path is specified then a line containing VARIABLE=VALUE is
+# written to the end of the file. Optionally the length of the random
+# string/value can be specified. (defaults to 50)
+function auto_ensure_key_exists {
+    local file_path="${1}"
+    local var_name="${2}"
+    local key_length="${3:-50}"
+    if [ -z "${!var_name}" ] ; then
+        debug 11 "No variable named ${var_name} found, generating a random string"
+        export "${var_name}"="$(gen_rand_chars "${key_length}")"
+
+        if [ -n "${file_path}" ] ; then
+            if [ -e "${file_path}" ] ; then
+                debug 10 "Writing variable key/value to file ${file_path}"
+                echo "${var_name}=${!var_name}" >> "${file_path}"
+            else
+                color_echo red "Unable to find/open file: ${file_path}"
+                exit_on_fail
+            fi
+        fi
+    else
+        debug 10 "Variable ${var_name} is already set"
+    fi
+}
 
 alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,**********///****************************************///,    .. .....**/////*,***//////////////////*/////////***
 > ,,,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,********/////////////////////////////////////********************,,,**///////////////////,,**///////////////////////////*///
