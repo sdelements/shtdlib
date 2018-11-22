@@ -2043,7 +2043,7 @@ function gen_rand_chars {
 # If a file name/path is specified then a line containing VARIABLE=VALUE is
 # written to the end of the file. Optionally the length of the random
 # string/value can be specified. (defaults to 50)
-function auto_ensure_key_exists {
+function check_set_persist_random_variable {
     local var_name="${1}"
     local file_path="${2:-}"
     local key_length="${3:-50}"
