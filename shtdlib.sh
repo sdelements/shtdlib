@@ -2017,7 +2017,7 @@ function auto_ensure_key_exists {
     local file_path="${1}"
     local var_name="${2}"
     local key_length="${3:-50}"
-    if [ -z "${!var_name}" ] ; then
+    if [ -z "${!var_name:-}" ] ; then
         debug 11 "No variable named ${var_name} found, generating a random string"
         export "${var_name}"="$(gen_rand_chars "${key_length}")"
 
