@@ -126,6 +126,36 @@ function in_array {
     return 1
 }
 
+
+# Returns the number of arguments passed to it
+function count_arguments {
+    echo ${#:-0}
+}
+
+# Prints the number of elements in an array using the name passed as an
+# argument in a bash version agnostic way.
+# This is important because of changes in handling of empty arrays with the -u
+# flag set which was different from bash v 4.0 until 4.4
+function count_array_elements {
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
+    array_ref="${1}[*]"
+    #shellcheck disable=2086
+    count_arguments ${!array_ref}
+}
+
+# Returns 1 if an array is empty, else return 0 if it contains data
+function empty_array {
+    if [ "$(count_array_elements "${@}")" -gt 0 ] ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
 ############################# Deprecated #######################################
 ############## Use variable=${variable:-value} instead  ########################
 # Takes a variable name and sets it to the second parameter
