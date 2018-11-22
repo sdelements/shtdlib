@@ -2008,15 +2008,16 @@ function gen_rand_chars {
     LC_CTYPE=C tr -dc "${chars}" < '/dev/urandom' | head -c "${length}"
 }
 
-# Checks if an environtment variable is set and contains a string longer than
+# Checks if an environment variable is set and contains a string longer than
 # 0, if not then it's set to a random value.
 # If a file name/path is specified then a line containing VARIABLE=VALUE is
 # written to the end of the file. Optionally the length of the random
 # string/value can be specified. (defaults to 50)
 function auto_ensure_key_exists {
-    local file_path="${1}"
-    local var_name="${2}"
+    local var_name="${1}"
+    local file_path="${2:-}"
     local key_length="${3:-50}"
+    assert test -n "${var_name}"
     if [ -z "${!var_name:-}" ] ; then
         debug 11 "No variable named ${var_name} found, generating a random string"
         export "${var_name}"="$(gen_rand_chars "${key_length}")"
@@ -2029,6 +2030,8 @@ function auto_ensure_key_exists {
                 color_echo red "Unable to find/open file: ${file_path}"
                 exit_on_fail
             fi
+        else
+            debug 10 "${FUNCNAME[0]} no file_path specified, just setting variable but not persisting"
         fi
     else
         debug 10 "Variable ${var_name} is already set"
