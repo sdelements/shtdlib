@@ -129,7 +129,7 @@ function in_array {
 
 # Returns the number of arguments passed to it
 function count_arguments {
-    echo ${#:-0}
+    echo "${#:-0}"
 }
 
 # Prints the number of elements in an array using the name passed as an
@@ -2045,8 +2045,8 @@ function gen_rand_chars {
 # string/value can be specified. (defaults to 50)
 function check_set_persist_random_variable {
     local var_name="${1}"
-    local file_path="${2:-}"
-    local key_length="${3:-50}"
+    local file_path="${csprv_file_path:-${2:-}}"
+    local key_length="${csprv_key_length:-${3:-50}}"
     assert test -n "${var_name}"
     if [ -z "${!var_name:-}" ] ; then
         debug 11 "No variable named ${var_name} found, generating a random string"
@@ -2061,7 +2061,7 @@ function check_set_persist_random_variable {
                 exit_on_fail
             fi
         else
-            debug 10 "${FUNCNAME[0]} no file_path specified, just setting variable but not persisting"
+            debug 10 "${FUNCNAME[0]} no file_path specified, setting ${var_name} but not persisting"
         fi
     else
         debug 10 "Variable ${var_name} is already set"
