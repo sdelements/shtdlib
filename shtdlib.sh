@@ -126,6 +126,37 @@ function in_array {
     return 1
 }
 
+
+# Returns the number of arguments passed to it
+function count_arguments {
+    echo "${#:-0}"
+}
+
+# Prints the number of elements in an array using the name passed as an
+# argument in a bash version agnostic way.
+# This is important because of changes in handling of empty arrays with the -u
+# flag set which was different from bash v 4.0 until 4.4
+function count_array_elements {
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
+    array_ref="${1}[@]"
+    count_arguments "${!array_ref}"
+}
+
+# Returns 0 if an array is empty, else return 1 if it contains data.
+# The array should be passed in by name (indirect)
+function empty_array {
+    assert test -n "${1}"
+    if [ "$(count_array_elements "${1}")" -gt 0 ] ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
 ############################# Deprecated #######################################
 ############## Use variable=${variable:-value} instead  ########################
 # Takes a variable name and sets it to the second parameter
@@ -2008,16 +2039,17 @@ function gen_rand_chars {
     LC_CTYPE=C tr -dc "${chars}" < '/dev/urandom' | head -c "${length}"
 }
 
-# Checks if an environtment variable is set and contains a string longer than
+# Checks if an environment variable is set and contains a string longer than
 # 0, if not then it's set to a random value.
 # If a file name/path is specified then a line containing VARIABLE=VALUE is
 # written to the end of the file. Optionally the length of the random
 # string/value can be specified. (defaults to 50)
-function auto_ensure_key_exists {
-    local file_path="${1}"
-    local var_name="${2}"
-    local key_length="${3:-50}"
-    if [ -z "${!var_name}" ] ; then
+function check_set_persist_random_variable {
+    local var_name="${1}"
+    local file_path="${csprv_file_path:-${2:-}}"
+    local key_length="${csprv_key_length:-${3:-50}}"
+    assert test -n "${var_name}"
+    if [ -z "${!var_name:-}" ] ; then
         debug 11 "No variable named ${var_name} found, generating a random string"
         export "${var_name}"="$(gen_rand_chars "${key_length}")"
 
@@ -2029,6 +2061,8 @@ function auto_ensure_key_exists {
                 color_echo red "Unable to find/open file: ${file_path}"
                 exit_on_fail
             fi
+        else
+            debug 10 "${FUNCNAME[0]} no file_path specified, setting ${var_name} but not persisting"
         fi
     else
         debug 10 "Variable ${var_name} is already set"
