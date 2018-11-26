@@ -142,9 +142,8 @@ function count_array_elements {
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
-    array_ref="${1}[*]"
-    #shellcheck disable=2086
-    count_arguments ${!array_ref}
+    array_ref="${1}[@]"
+    count_arguments "${!array_ref}"
 }
 
 # Returns 1 if an array is empty, else return 0 if it contains data
