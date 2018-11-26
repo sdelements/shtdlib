@@ -146,9 +146,11 @@ function count_array_elements {
     count_arguments "${!array_ref}"
 }
 
-# Returns 1 if an array is empty, else return 0 if it contains data
+# Returns 0 if an array is empty, else return 1 if it contains data.
+# The array should be passed in by name (indirect)
 function empty_array {
-    if [ "$(count_array_elements "${@}")" -gt 0 ] ; then
+    assert test -n "${1}"
+    if [ "$(count_array_elements "${1}")" -gt 0 ] ; then
         return 1
     else
         return 0
