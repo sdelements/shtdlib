@@ -296,6 +296,36 @@ function shopt_decorator {
     exit 127
 }
 
+# Test decorator
+# Forces a function to be executed in all bash variants using the bashtester
+# submodule and containers. Requires docker to be installed and git submodules
+# to be present and up do date.
+# To use this add a line like the following (without #) as the first line of a function
+# test_decorator "${FUNCNAME[0]}" "${@:-}" && return
+# test_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with test_decorator"
+
+# To specify a different set of bash versions set supported-bash_versions to a
+# space separated string of the supported versions.
+function test_decorator {
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+
+        default_bash_versions=( '3.1.23' \
+                                '3.2.57' \
+                                '4.0.44' \
+                                '4.1.17' \
+                                '4.2.53' \
+                                '4.3.48' \
+                                '4.4.23' \
+                                '5.0-beta' )
+        supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
+
+        bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]}" && ${@}
+        return 0
+    fi
+    return 1
+}
+
+
 # A platform (readlink implementation) neutral way to follow symlinks
 function readlink_m {
     debug 10 "readlink_m called with: ${*}"
@@ -506,7 +536,6 @@ script_full_path="${0}"
 if [ ! -f "${script_full_path}" ] ; then
     script_full_path="$(pwd)"
 fi
-
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
@@ -771,14 +800,22 @@ function on_break {
 
 function add_on_exit {
     debug 10 "Registering signal action on exit: \"${*}\""
-    local n="${#on_exit[@]}"
+    if [ -n "${on_exit:-}" ] ; then
+        local n="${#on_exit[@]}"
+    else
+        local n=0
+    fi
     on_exit[${n}]="${*}"
     debug 10 "on_exit content: ${on_exit[*]}, size: ${#on_exit[*]}, keys: ${!on_exit[*]}"
 }
 
 function add_on_break {
     debug 10 "Registering signal action on break: \"${*}\""
-    local n="${#on_break[@]}"
+    if [ -n "${on_break:-}" ] ; then
+        local n="${#on_break[@]}"
+    else
+        local n=0
+    fi
     on_break[${n}]="${*}"
     debug 10 "on_break content: ${on_break[*]}, size: ${#on_break[*]}, keys: ${!on_break[*]}"
 }
@@ -2143,6 +2180,8 @@ function test_shopt_decorator {
 
 # Primary Unit Test Function
 function test_shtdlib {
+    test_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with test_decorator"
+
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
