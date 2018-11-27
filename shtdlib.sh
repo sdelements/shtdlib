@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2174,SC2016,SC2026,SC2206,SC2128
 #
 # This is a collection of shared functions used by SD Elements products
@@ -46,6 +46,15 @@ start_timestamp=$(date +"%Y%m%d%H%M")
 
 # Store original tty
 init_tty="$(tty || true)"
+
+# Check if shell supports array append syntax
+array_append_supported="$(bash -c 'a=(); a+=1 &>/dev/null && echo true || echo false')"
+
+# Exit unless syntax supports array append
+if ! "${array_append_supported}" ; then
+    echo "This library (${0}) requires bash version 3.1+ with array append support to work properly"
+    exit 1
+fi
 
 # Determine OS family and OS type
 OS="${OS:-}"
@@ -352,7 +361,7 @@ function _version_sort {
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
-    if sort --help | grep -q version-sort ; then
+    if sort --help 2>1 | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
@@ -420,7 +429,7 @@ function compare_versions {
     assert [ ${#items[@]} -gt 0 ]
     #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
+    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep -e "^${lowest_ver}$" -c | awk -F: '{print $1}')
     debug 10 "${FUNCNAME} returning $(( lowest_ver_line-1 ))"
     return $(( lowest_ver_line-1 ))
 }
@@ -474,7 +483,7 @@ function finalize_path {
         setvar=true
     fi
     if [ -n "${path}" ] && [ -e "${path}" ] ; then
-        if [ "${os_family}" == 'MacOSX' ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
             full_path=$(readlink_m "${path}")
         else
             full_path="$(readlink -m "${path}")"

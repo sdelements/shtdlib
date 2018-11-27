@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 default_library_name='shtdlib.sh'
 default_base_download_url='https://raw.githubusercontent.com/sdelements/shtdlib/master'
