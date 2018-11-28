@@ -20,21 +20,22 @@ functions will be supported on all versions.
 
 For an example of how to install/import see:
 
+```bash
 import_install_example.sh
-
+```
 
 ## Testing
 
 For testing bash code across multiple versions of bash we highly recommend
 using the bashtester submodule, you can pull it with this repository by using:
 
-```
+```bash
 git clone --recurse-submodules https://github.com/sdelements/shtdlib.git
 ```
 
 Or if you've already cloned this project you can initialize and pull using:
 
-```
+```bash
 git submodule init
 git submodule update --recursive
 ```
@@ -43,17 +44,17 @@ git submodule update --recursive
 
 - all supported versions (using docker containers)
 
-    ```
+    ```bash
     import shtdlib.sh && test_shtdlib
     ```
 
 - local bash only, no containers
-    ```
+    ```bash
     import shtdlib.sh && test_shtdlib local
     ```
 
 - specific bash version(s) and/or local
-    ```
+    ```bash
     import shtdlib.sh && test_shtdlib 3.1.23 4.4.23 local
     ```
 
