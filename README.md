@@ -19,13 +19,16 @@ git submodule update --recursive
 
 Test Examples:
 
-# all supported versions
+- all supported versions
+
 import shtdlib.sh && test_shtdlib
 
-# local bash only, no containers
+- local bash only, no containers
+
 import shtdlib.sh && test_shtdlib local
 
-# specific bash version(s)
+- specific bash version(s)
+
 import shtdlib.sh && test_shtdlib 3.1.23 4.4.23
 
 
