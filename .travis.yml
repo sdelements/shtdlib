@@ -1,7 +1,6 @@
 
 env:
   matrix:
-    - BASH_VERSION=3.0.22
     - BASH_VERSION=3.1.23
     - BASH_VERSION=3.2.57
     - BASH_VERSION=4.0.44
@@ -14,6 +13,10 @@ env:
 language: bash
 
 script:
+  - set -x
+  - pwd
+  - ls -la
+  - ls -la /shtdlib
   - docker run -v "$(pwd)":/shtdlib bash:${BASH_VERSION} /usr/local/bin/bash set -x && source /shtdlib/shtdlib.sh && test_shtdlib
 
 jobs:
