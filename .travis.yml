@@ -13,7 +13,9 @@ env:
 
 language: bash
 
-script: docker run -v .:/shtdlib bash:${BASH_VERSION} /usr/local/bin/bash source /shtdlib/shtdlib.sh && test_shtdlib
+script:
+  - set -x
+  - docker run -v .:/shtdlib bash:${BASH_VERSION} /usr/local/bin/bash source /shtdlib/shtdlib.sh && test_shtdlib
 
 jobs:
   include:
