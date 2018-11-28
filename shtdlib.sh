@@ -36,7 +36,7 @@ if ! ${interactive} ; then
 fi
 
 # Set Version
-shtdlib_version='0.1'
+shtdlib_version='0.2'
 
 # Timestamp, the date/time we started
 start_timestamp=$(date +"%Y%m%d%H%M")
@@ -307,7 +307,8 @@ function shopt_decorator {
 # To specify a different set of bash versions set supported-bash_versions to a
 # space separated string of the supported versions.
 function test_decorator {
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+    # If not running in a container
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! cat /proc/1/cgroup | grep -q docker; then
 
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
@@ -457,11 +458,15 @@ function compare_versions {
 
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
-    #shellcheck disable=SC2119
     lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep -e "^${lowest_ver}$" -c | awk -F: '{print $1}')
-    debug 10 "${FUNCNAME} returning $(( lowest_ver_line-1 ))"
-    return $(( lowest_ver_line-1 ))
+    for (( i=0; i<${#items[@]}; i++ )) ; do
+        if [ "${items[i]}" == "${lowest_ver}" ] ; then
+            debug 10 "${FUNCNAME} returning ${i}"
+            return "${i}"
+        fi
+    done
+    color_echo_red "Failed to compare versions!"
+    exit_on_fail
 }
 
 # Set conveniece variable for bash v4 compat
@@ -2180,8 +2185,8 @@ function test_shopt_decorator {
 
 # Primary Unit Test Function
 function test_shtdlib {
+    # Run this function inside bash containers
     test_decorator "${FUNCNAME[0]}" "${@:-}" && return
-    echo TEST
 
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
@@ -2242,8 +2247,8 @@ function test_shtdlib {
     assert  compare_versions '1.0.0 1.1.1 2.2.2'
     assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
 
-    # Test resolving domain names
-    assert [ "$(resolve_domain_name example.com)" == '93.184.216.34' ]
+    # Test resolving domain names (IPv4)
+    assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 }
 
 # Test bash version
