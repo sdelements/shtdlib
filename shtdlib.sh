@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2034,SC2174,SC2016,SC2026,SC2206,SC2128
 #
 # This is a collection of shared functions used by SD Elements products
@@ -36,7 +36,7 @@ if ! ${interactive} ; then
 fi
 
 # Set Version
-shtdlib_version='0.1'
+shtdlib_version='0.2'
 
 # Timestamp, the date/time we started
 start_timestamp=$(date +"%Y%m%d%H%M")
@@ -46,6 +46,15 @@ start_timestamp=$(date +"%Y%m%d%H%M")
 
 # Store original tty
 init_tty="$(tty || true)"
+
+# Check if shell supports array append syntax
+array_append_supported="$(bash -c 'a=(); a+=1 &>/dev/null && echo true || echo false')"
+
+# Exit unless syntax supports array append
+if ! "${array_append_supported}" ; then
+    echo "This library (${0}) requires bash version 3.1+ with array append support to work properly"
+    exit 1
+fi
 
 # Determine OS family and OS type
 OS="${OS:-}"
@@ -287,6 +296,35 @@ function shopt_decorator {
     exit 127
 }
 
+# Test decorator
+# Forces a function to be executed in all bash variants using the bashtester
+# submodule and containers. Requires docker to be installed and git submodules
+# to be present and up do date.
+# To use this add a line like the following (without #) as the first line of a function
+# test_decorator "${FUNCNAME[0]}" "${@:-}" && return
+# test_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with test_decorator"
+
+# To specify a different set of bash versions set supported-bash_versions to a
+# space separated string of the supported versions.
+function test_decorator {
+    # If not running in a container
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! grep -q docker /proc/1/cgroup ; then
+        default_bash_versions=( '3.1.23' \
+                                '3.2.57' \
+                                '4.0.44' \
+                                '4.1.17' \
+                                '4.2.53' \
+                                '4.3.48' \
+                                '4.4.23' \
+                                '5.0-beta' )
+        supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${*}"
+        return 0
+    fi
+    return 1
+}
+
+
 # A platform (readlink implementation) neutral way to follow symlinks
 function readlink_m {
     debug 10 "readlink_m called with: ${*}"
@@ -352,7 +390,7 @@ function _version_sort {
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
-    if sort --help | grep -q version-sort ; then
+    if sort --help 2>1 | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
@@ -418,11 +456,16 @@ function compare_versions {
 
     items=( ${@} )
     assert [ ${#items[@]} -gt 0 ]
-    #shellcheck disable=SC2119
-    lowest_ver=$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)
-    lowest_ver_line=$(printf "%s\\n" "${items[@]}" | grep --line-regexp "${lowest_ver}" --line-number --max-count=1 | awk -F: '{print $1}')
-    debug 10 "${FUNCNAME} returning $(( lowest_ver_line-1 ))"
-    return $(( lowest_ver_line-1 ))
+    # shellcheck disable=2119
+    lowest_ver="$(printf "%s\\n" "${items[@]}" | version_sort | head -n1)"
+    for (( i=0; i<${#items[@]}; i++ )) ; do
+        if [ "${items[i]}" == "${lowest_ver}" ] ; then
+            debug 10 "${FUNCNAME} returning ${i}"
+            return "${i}"
+        fi
+    done
+    color_echo_red "Failed to compare versions!"
+    exit_on_fail
 }
 
 # Set conveniece variable for bash v4 compat
@@ -474,7 +517,7 @@ function finalize_path {
         setvar=true
     fi
     if [ -n "${path}" ] && [ -e "${path}" ] ; then
-        if [ "${os_family}" == 'MacOSX' ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
             full_path=$(readlink_m "${path}")
         else
             full_path="$(readlink -m "${path}")"
@@ -497,7 +540,6 @@ script_full_path="${0}"
 if [ ! -f "${script_full_path}" ] ; then
     script_full_path="$(pwd)"
 fi
-
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
@@ -762,14 +804,22 @@ function on_break {
 
 function add_on_exit {
     debug 10 "Registering signal action on exit: \"${*}\""
-    local n="${#on_exit[@]}"
+    if [ -n "${on_exit:-}" ] ; then
+        local n="${#on_exit[@]}"
+    else
+        local n=0
+    fi
     on_exit[${n}]="${*}"
     debug 10 "on_exit content: ${on_exit[*]}, size: ${#on_exit[*]}, keys: ${!on_exit[*]}"
 }
 
 function add_on_break {
     debug 10 "Registering signal action on break: \"${*}\""
-    local n="${#on_break[@]}"
+    if [ -n "${on_break:-}" ] ; then
+        local n="${#on_break[@]}"
+    else
+        local n=0
+    fi
     on_break[${n}]="${*}"
     debug 10 "on_break content: ${on_break[*]}, size: ${#on_break[*]}, keys: ${!on_break[*]}"
 }
@@ -2133,7 +2183,20 @@ function test_shopt_decorator {
 }
 
 # Primary Unit Test Function
+# Defaults to testing all bash versions in containers, any/all arguments are
+# assumed to be container image names (bash versions) to test with.
+# Also supports "local" which will test without using containers.
 function test_shtdlib {
+    # Run this function inside bash containers as/if specified
+    if in_array 'local' "${@}" ; then
+        if [ "${#}" -ne 1 ] ; then
+            supported_bash_versions=( "${@/local}" )
+            test_decorator "${FUNCNAME[0]}"
+        fi
+    else
+        test_decorator "${FUNCNAME[0]}" && return
+    fi
+
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
@@ -2193,8 +2256,8 @@ function test_shtdlib {
     assert  compare_versions '1.0.0 1.1.1 2.2.2'
     assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
 
-    # Test resolving domain names
-    assert [ "$(resolve_domain_name example.com)" == '93.184.216.34' ]
+    # Test resolving domain names (IPv4)
+    assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 }
 
 # Test bash version
