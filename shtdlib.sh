@@ -319,7 +319,7 @@ function test_decorator {
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
 
-        bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]}" && ${@}
+        bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${@}"
         return 0
     fi
     return 1
@@ -2180,7 +2180,8 @@ function test_shopt_decorator {
 
 # Primary Unit Test Function
 function test_shtdlib {
-    test_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with test_decorator"
+    test_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    echo TEST
 
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
