@@ -308,7 +308,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! cat /proc/1/cgroup | grep -q docker; then
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! grep -q docker /proc/1/cgroup ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -2190,7 +2190,7 @@ function test_shtdlib {
     # Run this function inside bash containers as/if specified
     if in_array 'local' "${@}" ; then
         if [ "${#}" -ne 1 ] ; then
-            supported_bash_versions="${@/local}"
+            supported_bash_versions=( "${@/local}" )
             test_decorator "${FUNCNAME[0]}"
         fi
     else
