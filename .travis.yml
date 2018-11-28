@@ -1,18 +1,23 @@
+
+stages:
+  - Unit Testing
+  - shellcheck
+
 env:
   matrix:
-    - BASH_VER=3.0.22
-    - BASH_VER=3.1.23
-    - BASH_VER=3.2.57
-    - BASH_VER=4.0.44
-    - BASH_VER=4.1.17
-    - BASH_VER=4.2.53
-    - BASH_VER=4.3.48
-    - BASH_VER=4.4.23
-    - BASH_VER=5.0-beta
+    - BASH_VERSION=3.0.22
+    - BASH_VERSION=3.1.23
+    - BASH_VERSION=3.2.57
+    - BASH_VERSION=4.0.44
+    - BASH_VERSION=4.1.17
+    - BASH_VERSION=4.2.53
+    - BASH_VERSION=4.3.48
+    - BASH_VERSION=4.4.23
+    - BASH_VERSION=5.0-beta
 
 language: bash
 
-script: docker run bash:${BASH_VER} -c env
+script: docker run -v ./:/shtdlib bash:${BASH_VERSION} /usr/local/bin/bash source /shtdlib/shtdlib.sh && test_shtdlib
 
 jobs:
   include:
