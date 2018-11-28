@@ -26,7 +26,7 @@ import shtdlib.sh && test_shtdlib
 import shtdlib.sh && test_shtdlib local
 
 # specific bash version(s)
-import shtdlib.sh && 3.1.23 4.4.23
+import shtdlib.sh && test_shtdlib 3.1.23 4.4.23
 
 
 Supported bash versions currently include the following though not all
