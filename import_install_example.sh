@@ -16,7 +16,7 @@ function download_lib {
 function install_lib {
     local lib_path="${1:-${default_install_path}/${default_library_name}}"
     local lib_name="${2:-$(basename "${lib_path}")}"
-    tmp_path="${3:-$(mktemp)}"
+    local tmp_path="${3:-$(mktemp)}"
 
     echo "Installing library ${lib_name} to ${lib_path}"
     download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"

@@ -309,7 +309,6 @@ function shopt_decorator {
 function test_decorator {
     # If not running in a container
     if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! cat /proc/1/cgroup | grep -q docker; then
-
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -319,8 +318,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-
-        bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${@}"
+        verbosity=${verbosity:-} bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${@}"
         return 0
     fi
     return 1
@@ -2184,9 +2182,19 @@ function test_shopt_decorator {
 }
 
 # Primary Unit Test Function
+# Defaults to testing all bash versions in containers, any/all arguments are
+# assumed to be container image names (bash versions) to test with.
+# Also supports "local" which will test without using containers.
 function test_shtdlib {
-    # Run this function inside bash containers
-    test_decorator "${FUNCNAME[0]}" "${@:-}" && return
+    # Run this function inside bash containers as/if specified
+    if in_array 'local' "${@}" ; then
+        if [ "${#}" -ne 1 ] ; then
+            supported_bash_versions="${@/local}"
+            test_decorator "${FUNCNAME[0]}"
+        fi
+    else
+        test_decorator "${FUNCNAME[0]}" && return
+    fi
 
     color_echo green "Testing shtdlib functions"
     color_echo cyan "OS Family is: ${os_family}"
