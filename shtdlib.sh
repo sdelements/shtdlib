@@ -341,14 +341,17 @@ function readlink_m {
     elif whichs readlink && readlink -m "${args[0]}" &> /dev/null ; then
         readlink -m "${args[0]}"
         return 0
-    elif whichs realpath ; then
-        realpath "${args[0]}"
+    elif whichs realpath && realpath -m "${args[0]}" &> /dev/null ; then
+        realpath -m "${args[0]}"
         return 0
     elif whichs greadink ; then
         greadlink -m "${args[0]}"
         return 0
     elif whichs grealpath ; then
         grealpath "${args[0]}"
+        return 0
+    elif whichs realpath ; then
+        realpath "${args[0]}"
         return 0
     elif [ -e "${args[0]}" ] ; then
         if stat -f "%N %Y" "${args[0]}" &> /dev/null ; then
@@ -390,7 +393,7 @@ function _version_sort {
     # shellcheck disable=2015
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
 
-    if sort --help 2>1 | grep -q version-sort ; then
+    if sort --help 2>&1 | grep -q version-sort ; then
         local vsorter='sort --version-sort'
     else
         debug 10 "Using suboptimal version sort due to old Coreutils/Platform"
@@ -563,6 +566,48 @@ function print_version {
         (>&2 echo "${error_msg}")
     fi
 }
+
+# Converts relative paths to full paths, using the best method available
+# Accepts either the path or name of a variable holding the path
+function finalize_path {
+    local setvar
+    assert test -n "${1}"
+    # Check if there is a filesystem object matching the path
+    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
+        debug 10 "Assuming path argument: ${1} is a path"
+        path="${1}"
+        setvar=false
+    else
+        debug 5 "Confirming argument: ${1} is a variable name"
+        declare path="${!1}"
+        setvar=true
+    fi
+    if [ -n "${path}" ] && [ -e "${path}" ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
+            full_path=$(readlink_m "${path}")
+        else
+            full_path="$(readlink -m "${path}")"
+        fi
+        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
+        if [ -n "${full_path}" ]; then
+            if ${setvar} ; then
+                export "$1"="${full_path}"
+            else
+                echo "${full_path}"
+            fi
+        fi
+    else
+        debug 5 "Unable to finalize path: ${path}"
+    fi
+}
+
+# Store full path to this script
+script_full_path="${0}"
+if [ ! -f "${script_full_path}" ] ; then
+    script_full_path="$(pwd)"
+fi
+finalize_path script_full_path
+run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
@@ -2244,7 +2289,6 @@ function test_shtdlib {
     finalize_path '~'
     finalize_path './'
     finalize_path '$HOME/test'
-    finalize_path '\tmp'
 
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
