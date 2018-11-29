@@ -1,5 +1,24 @@
+
 env:
-  - SHELLCHECK_OPTS="-e SC2086 -e SC2046 -e SC2154 -e SC2089 -e SC2090 -e SC2091 -e SC1091 -e SC2129 -e SC2155 -e SC1117 -e SC2174 -e SC2124 -e SC2207 -e SC2206"
+  matrix:
+    - BASH_VERSION=3.1.23
+    - BASH_VERSION=3.2.57
+    - BASH_VERSION=4.0.44
+    - BASH_VERSION=4.1.17
+    - BASH_VERSION=4.2.53
+    - BASH_VERSION=4.3.48
+    - BASH_VERSION=4.4.23
+    - BASH_VERSION=5.0-beta
+
 language: bash
+
 script:
-  - shellcheck *.sh
+  - docker run -v "$(pwd)":/shtdlib bash:${BASH_VERSION} -c 'source /shtdlib/shtdlib.sh && test_shtdlib'
+
+jobs:
+  include:
+    - stage: shellcheck
+      env:
+        - SHELLCHECK_OPTS="-e SC2086 -e SC2046 -e SC2154 -e SC2089 -e SC2090 -e SC2091 -e SC1091 -e SC2129 -e SC2155 -e SC1117 -e SC2174 -e SC2124 -e SC2207 -e SC2206"
+      script:
+        - find . -type f -name "*.sh" | xargs shellcheck
