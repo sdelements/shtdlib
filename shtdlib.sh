@@ -189,7 +189,7 @@ function color_echo {
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
-    if [ "${verbosity:-}" -ge "${1}" ]; then
+    if [ "${verbosity:-1}" -ge "${1}" ]; then
         if [ -e "${init_tty}" ] ; then
             color_echo yellow "${*:2}" > "${init_tty}"
         else
@@ -308,7 +308,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
-    if [ "${FUNCNAME[0]-unset}" != "${FUNCNAME[2]-unset}" ] && ! grep -q docker /proc/1/cgroup ; then
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -446,7 +446,7 @@ function finalize_path {
         setvar=false
     else
         debug 5 "Finalizing path for: ${1}"
-        declare path="${!1-unset}"
+        declare path="${!1}"
         setvar=true
     fi
     if [ -n "${path}" ] && [ -e "${path}" ] ; then
