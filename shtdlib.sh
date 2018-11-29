@@ -2194,7 +2194,7 @@ function test_shtdlib {
             test_decorator "${FUNCNAME[0]}"
         fi
     else
-        supported_bash_versions=( "${@}" )
+        supported_bash_versions=( "${@:-}" )
         test_decorator "${FUNCNAME[0]}" && return
     fi
 
