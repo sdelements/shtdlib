@@ -648,6 +648,40 @@ function print_version {
     fi
 }
 
+# Converts relative paths to full paths, using the best method available
+# Accepts either the path or name of a variable holding the path
+function finalize_path {
+    local setvar
+    assert test -n "${1}"
+    # Check if there is a filesystem object matching the path
+    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
+        debug 10 "Assuming path argument: ${1} is a path"
+        path="${1}"
+        setvar=false
+    else
+        debug 5 "Confirming argument: ${1} is a variable name"
+        declare path="${!1}"
+        setvar=true
+    fi
+    if [ -n "${path}" ] && [ -e "${path}" ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
+            full_path=$(readlink_m "${path}")
+        else
+            full_path="$(readlink -m "${path}")"
+        fi
+        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
+        if [ -n "${full_path}" ]; then
+            if ${setvar} ; then
+                export "$1"="${full_path}"
+            else
+                echo "${full_path}"
+            fi
+        fi
+    else
+        debug 5 "Unable to finalize path: ${path}"
+    fi
+}
+
 # Store full path to this script
 script_full_path="${0}"
 if [ ! -f "${script_full_path}" ] ; then
@@ -2655,23 +2689,10 @@ function test_shtdlib {
 
     # Test finalizing paths
     shtdlib_test_variable='/home/test'
-    finalize_path shtdlib_test_variable > /dev/null
-    finalize_path '~' > /dev/null
-    finalize_path './' > /dev/null
-    finalize_path '$HOME/test' > /dev/null
-
-    # Test stripping path and exptension from a path
-    assert [ "$(basename_s /tmp/example.file)" == 'example' ] && color_echo green 'Tested basename_s correctly stripped path and extension from a path'
-
-    # Test counting arguments
-    assert [ "$(count_arguments 1 2 3 4)" == 4 ] && color_echo green 'Tested count_arguments with 4 args'
-
-    # Test platform neutral readlink -m/_m implementation
-    tmp_file_path="$(mktemp)"
-    tmp_symlink_dir="$(mktemp -d)"
-    tmp_file_name="$(basename "${tmp_file_path}")"
-    ln -s "${tmp_file_path}" "${tmp_symlink_dir}/${tmp_file_name}"
-    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ] && color_echo green "Sucessfully determined symlink target with readlink_m"
+    finalize_path shtdlib_test_variable
+    finalize_path '~'
+    finalize_path './'
+    finalize_path '$HOME/test'
 
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
