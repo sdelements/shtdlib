@@ -34,7 +34,7 @@ function import_lib {
     local lib_name="${1:-${default_library_name}}"
     local lib_no_ext="${lib_name%.*}"
     local lib_basename_s="${lib_no_ext##*/}"
-    full_path="$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || realpath "${BASH_SOURCE[0]}" 2> /dev/null || greadlink -f "${BASH_SOURCE[0]}" 2> /dev/null)"
+    full_path="$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || realpath "${BASH_SOURCE[0]}" 2> /dev/null || greadlink -f "${BASH_SOURCE[0]}" 2> /dev/null || true)"
     full_path="${full_path:-${0}}"
     # Search current dir and walk down to see if we can find the library in a
     # parent directory or sub directories of parent directories named lib/bin
