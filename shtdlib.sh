@@ -2204,6 +2204,7 @@ function test_shtdlib {
     for ip in ${local_ip_addresses} ; do
         color_echo cyan "${ip}"
     done
+
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
     color_echo red "Red"
@@ -2213,12 +2214,15 @@ function test_shtdlib {
     color_echo magenta "Magenta"
     color_echo cyan "Cyan"
     color_echo blank "Blank"
+
     # Test decorators
     # shellcheck disable=2015
     shopt -uo pipefail && test_shopt_decorator 'Hello World' || exit_on_fail
+
     assert true
     assert whichs ls
     assert [ 0 -eq 0 ]
+
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     # shellcheck disable=SC1117
@@ -2233,6 +2237,7 @@ function test_shtdlib {
         debug ${i} "Debug Level ${i}"
     done
     verbosity="${orig_verbosity}"
+
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
