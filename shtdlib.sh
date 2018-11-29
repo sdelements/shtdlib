@@ -308,7 +308,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! grep -q docker /proc/1/cgroup ; then
+    if [ "${FUNCNAME[0]-unset}" != "${FUNCNAME[2]-unset}" ] && ! grep -q docker /proc/1/cgroup ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -513,7 +513,7 @@ function finalize_path {
         setvar=false
     else
         debug 5 "Finalizing path for: ${1}"
-        declare path="${!1}"
+        declare path="${!1-unset}"
         setvar=true
     fi
     if [ -n "${path}" ] && [ -e "${path}" ] ; then
