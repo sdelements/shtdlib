@@ -189,7 +189,7 @@ function color_echo {
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
-    if [ "${verbosity}" -ge "${1}" ]; then
+    if [ "${verbosity:-}" -ge "${1}" ]; then
         if [ -e "${init_tty}" ] ; then
             color_echo yellow "${*:2}" > "${init_tty}"
         else
@@ -436,6 +436,46 @@ function basename_s {
     echo "${basename}"
 }
 
+# Converts relative paths to full paths, ignores invalid paths
+# Accepts either the path or name of a variable holding the path
+function finalize_path {
+    local setvar
+    # Check if there is a filesystem object matching the path
+    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
+        path="${1}"
+        setvar=false
+    else
+        debug 5 "Finalizing path for: ${1}"
+        declare path="${!1-unset}"
+        setvar=true
+    fi
+    if [ -n "${path}" ] && [ -e "${path}" ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
+            full_path=$(readlink_m "${path}")
+        else
+            full_path="$(readlink -m "${path}")"
+        fi
+        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
+        if [ -n "${full_path}" ]; then
+            if ${setvar} ; then
+                export "$1"="${full_path}"
+            else
+                echo "${full_path}"
+            fi
+        fi
+    else
+        debug 5 "Unable to finalize path: ${path}"
+    fi
+}
+
+# Store full path to this script
+script_full_path="${0}"
+if [ ! -f "${script_full_path}" ] ; then
+    script_full_path="$(pwd)"
+fi
+finalize_path script_full_path
+run_dir="${run_dir:-$(dirname "${script_full_path}")}"
+
 # Allows checking of exit status, on error print debugging info and exit.
 # Takes an optional error message in which case only it will be shown
 # This is typically only used when running in non-strict mode but when errors
@@ -447,7 +487,7 @@ function exit_on_fail {
     else
         color_echo red "${*}" >&2
     fi
-    debug 10 "[$( caller )] ${*}"
+    debug 10 "[$( caller )] ${*:-}"
     debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
     debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
     debug 0  "FUNCNAME: ${FUNCNAME[*]}"
@@ -523,46 +563,6 @@ function print_version {
         (>&2 echo "${error_msg}")
     fi
 }
-
-# Converts relative paths to full paths, ignores invalid paths
-# Accepts either the path or name of a variable holding the path
-function finalize_path {
-    local setvar
-    # Check if there is a filesystem object matching the path
-    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
-        path="${1}"
-        setvar=false
-    else
-        debug 5 "Finalizing path for: ${1}"
-        declare path="${!1-unset}"
-        setvar=true
-    fi
-    if [ -n "${path}" ] && [ -e "${path}" ] ; then
-        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
-            full_path=$(readlink_m "${path}")
-        else
-            full_path="$(readlink -m "${path}")"
-        fi
-        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
-        if [ -n "${full_path}" ]; then
-            if ${setvar} ; then
-                export "$1"="${full_path}"
-            else
-                echo "${full_path}"
-            fi
-        fi
-    else
-        debug 5 "Unable to finalize path: ${path}"
-    fi
-}
-
-# Store full path to this script
-script_full_path="${0}"
-if [ ! -f "${script_full_path}" ] ; then
-    script_full_path="$(pwd)"
-fi
-finalize_path script_full_path
-run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
@@ -1120,7 +1120,7 @@ function parse_opt_arg {
 
 # Resolve DNS name, returns IP if successful, otherwise name and error code
 function resolve_domain_name {
-    lookup_result="$( (whichs getent && getent ahosts "${1}" | awk '{ print $1 }'| sort -u) || (whichs dscacheutil && dscacheutil -q host -a name "${1}" | grep ip_address | awk '{ print $2 }'| sort -u ))"
+    lookup_result="$( (whichs getent >/dev/null && getent ahosts "${1}" | awk '{ print $1 }'| sort -u) || (whichs dscacheutil && dscacheutil -q host -a name "${1}" | grep ip_address | awk '{ print $2 }'| sort -u ))"
     if [ -z "${lookup_result}" ]; then
         echo "${1}"
         return 1
@@ -2188,7 +2188,7 @@ function test_shopt_decorator {
 # Also supports "local" which will test without using containers.
 function test_shtdlib {
     # Run this function inside bash containers as/if specified
-    if in_array 'local' "${@}" ; then
+    if in_array 'local' "${@:-}" ; then
         if [ "${#}" -ne 1 ] ; then
             supported_bash_versions=( "${@/local}" )
             test_decorator "${FUNCNAME[0]}"
