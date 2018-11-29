@@ -13,7 +13,7 @@ env:
 language: bash
 
 script:
-  - docker run -v "$(pwd)":/shtdlib bash:${BASH_VERSION} -c 'set -x && . /shtdlib/shtdlib.sh && test_shtdlib'
+  - docker run -v "$(pwd)":/shtdlib bash:${BASH_VERSION} -c 'source /shtdlib/shtdlib.sh && test_shtdlib'
 
 jobs:
   include:
