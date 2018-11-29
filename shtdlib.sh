@@ -308,7 +308,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup ; then
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup 2> /dev/null ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -318,7 +318,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/${BASH_SOURCE[0]} && ${*}"
         return 0
     fi
     return 1
@@ -2194,6 +2194,7 @@ function test_shtdlib {
             test_decorator "${FUNCNAME[0]}"
         fi
     else
+        supported_bash_versions=( "${@}" )
         test_decorator "${FUNCNAME[0]}" && return
     fi
 
