@@ -166,6 +166,9 @@ function empty_array {
     fi
 }
 
+# Default verbosity, common levels are 0,1,5,10
+verbosity="${verbosity:-1}"
+
 ############################# Deprecated #######################################
 ############## Use variable=${variable:-value} instead  ########################
 # Takes a variable name and sets it to the second parameter
@@ -175,9 +178,6 @@ function init_variable {
     # shellcheck disable=SC2086
     export $1=${!1:-${2:-}}
 }
-
-# Default verbosity, common levels are 0,1,5,10
-verbosity="${verbosity:-1}"
 
 # Colored echo
 # takes color and message(s) as parameters, valid colors are listed in the constants section
@@ -436,6 +436,27 @@ function basename_s {
     echo "${basename}"
 }
 
+# Allows checking of exit status, on error print debugging info and exit.
+# Takes an optional error message in which case only it will be shown
+# This is typically only used when running in non-strict mode but when errors
+# should be raised and to help with debugging
+function exit_on_fail {
+    message="${*:-}"
+    if [ -z "${message}" ] ; then
+        color_echo red "Last command did not execute successfully but is required!" >&2
+    else
+        color_echo red "${*}" >&2
+    fi
+    debug 10 "[$( caller )] ${*}"
+    debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
+    debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
+    debug 0  "FUNCNAME: ${FUNCNAME[*]}"
+    # Exit if we are running as a script
+    if [ -f "${script_full_path}" ]; then
+        exit 1
+    fi
+}
+
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
 # the index of the lowest version. In the case of multiple matches, the lowest
@@ -464,7 +485,7 @@ function compare_versions {
             return "${i}"
         fi
     done
-    color_echo_red "Failed to compare versions!"
+    color_echo red "Failed to compare versions!"
     exit_on_fail
 }
 
@@ -612,27 +633,6 @@ else
         pkill --exact "${1}"
     fi
 fi
-}
-
-# Allows checking of exit status, on error print debugging info and exit.
-# Takes an optional error message in which case only it will be shown
-# This is typically only used when running in non-strict mode but when errors
-# should be raised and to help with debugging
-function exit_on_fail {
-    message="${*:-}"
-    if [ -z "${message}" ] ; then
-        color_echo red "Last command did not execute successfully but is required!" >&2
-    else
-        color_echo red "${*}" >&2
-    fi
-    debug 10 "[$( caller )] ${*}"
-    debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
-    debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
-    debug 0  "FUNCNAME: ${FUNCNAME[*]}"
-    # Exit if we are running as a script
-    if [ -f "${script_full_path}" ]; then
-        exit 1
-    fi
 }
 
 # This function watches a set of files/directories and lets you run commands
