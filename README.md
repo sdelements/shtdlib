@@ -45,17 +45,15 @@ git submodule update --recursive
 - all supported versions (using docker containers)
 
     ```bash
-    import shtdlib.sh && test_shtdlib
+    source shtdlib.sh && test_shtdlib
     ```
 
 - local bash only, no containers
     ```bash
-    import shtdlib.sh && test_shtdlib local
+    source shtdlib.sh && test_shtdlib local
     ```
 
 - specific bash version(s) and/or local
     ```bash
-    import shtdlib.sh && test_shtdlib 3.1.23 4.4.23 local
+    source shtdlib.sh && test_shtdlib 3.1.23 4.4.23 local
     ```
-
-

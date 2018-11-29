@@ -216,11 +216,11 @@ function inotify_looper  {
     local destination="${1}"
     local full_path="${2}"
     # Set up notifications for each path and fork watching
-    inotifywait --monitor --recursive --format '%w %f %e' "${full_path}"\
-        --event 'modify' --event 'close_write'\
-        --event 'moved_to' --event 'create'\
-        --event 'moved_from' --event 'delete' --event 'move_self'\
-        --event 'delete_self' --event 'unmount'\
+    inotifywait --monitor --recursive --format '%w %f %e' "${full_path}" \
+        --event 'modify' --event 'close_write' \
+        --event 'moved_to' --event 'create' \
+        --event 'moved_from' --event 'delete' --event 'move_self' \
+        --event 'delete_self' --event 'unmount' \
             | while read -r -a dir_file_events; do
         for event in "${dir_file_events[@]:2}"; do
             case "${event}" in

@@ -166,6 +166,9 @@ function empty_array {
     fi
 }
 
+# Default verbosity, common levels are 0,1,5,10
+export verbosity="${verbosity:-1}"
+
 ############################# Deprecated #######################################
 ############## Use variable=${variable:-value} instead  ########################
 # Takes a variable name and sets it to the second parameter
@@ -175,9 +178,6 @@ function init_variable {
     # shellcheck disable=SC2086
     export $1=${!1:-${2:-}}
 }
-
-# Default verbosity, common levels are 0,1,5,10
-verbosity="${verbosity:-1}"
 
 # Colored echo
 # takes color and message(s) as parameters, valid colors are listed in the constants section
@@ -189,7 +189,7 @@ function color_echo {
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
-    if [ "${verbosity}" -ge "${1}" ]; then
+    if [ "${verbosity:-1}" -ge "${1}" ]; then
         if [ -e "${init_tty}" ] ; then
             color_echo yellow "${*:2}" > "${init_tty}"
         else
@@ -308,7 +308,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] && ! grep -q docker /proc/1/cgroup ; then
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup 2> /dev/null ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
                                 '4.0.44' \
@@ -318,7 +318,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh /usr/local/bin/bash -c ". /code/${BASH_SOURCE[0]} && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/${BASH_SOURCE[0]} && ${*}"
         return 0
     fi
     return 1
@@ -439,6 +439,67 @@ function basename_s {
     echo "${basename}"
 }
 
+# Converts relative paths to full paths, ignores invalid paths
+# Accepts either the path or name of a variable holding the path
+function finalize_path {
+    local setvar
+    # Check if there is a filesystem object matching the path
+    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
+        path="${1}"
+        setvar=false
+    else
+        debug 5 "Finalizing path for: ${1}"
+        declare path="${!1}"
+        setvar=true
+    fi
+    if [ -n "${path}" ] && [ -e "${path}" ] ; then
+        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
+            full_path=$(readlink_m "${path}")
+        else
+            full_path="$(readlink -m "${path}")"
+        fi
+        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
+        if [ -n "${full_path}" ]; then
+            if ${setvar} ; then
+                export "$1"="${full_path}"
+            else
+                echo "${full_path}"
+            fi
+        fi
+    else
+        debug 5 "Unable to finalize path: ${path}"
+    fi
+}
+
+# Store full path to this script
+script_full_path="${0}"
+if [ ! -f "${script_full_path}" ] ; then
+    script_full_path="$(pwd)"
+fi
+finalize_path script_full_path
+run_dir="${run_dir:-$(dirname "${script_full_path}")}"
+
+# Allows checking of exit status, on error print debugging info and exit.
+# Takes an optional error message in which case only it will be shown
+# This is typically only used when running in non-strict mode but when errors
+# should be raised and to help with debugging
+function exit_on_fail {
+    message="${*:-}"
+    if [ -z "${message}" ] ; then
+        color_echo red "Last command did not execute successfully but is required!" >&2
+    else
+        color_echo red "${*}" >&2
+    fi
+    debug 10 "[$( caller )] ${*:-}"
+    debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
+    debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
+    debug 0  "FUNCNAME: ${FUNCNAME[*]}"
+    # Exit if we are running as a script
+    if [ -f "${script_full_path}" ]; then
+        exit 1
+    fi
+}
+
 # Returns the index number of the lowest version, in effect this means it
 # returns true if the first value is the smallest but will always return
 # the index of the lowest version. In the case of multiple matches, the lowest
@@ -467,7 +528,7 @@ function compare_versions {
             return "${i}"
         fi
     done
-    color_echo_red "Failed to compare versions!"
+    color_echo red "Failed to compare versions!"
     exit_on_fail
 }
 
@@ -617,27 +678,6 @@ else
         pkill --exact "${1}"
     fi
 fi
-}
-
-# Allows checking of exit status, on error print debugging info and exit.
-# Takes an optional error message in which case only it will be shown
-# This is typically only used when running in non-strict mode but when errors
-# should be raised and to help with debugging
-function exit_on_fail {
-    message="${*:-}"
-    if [ -z "${message}" ] ; then
-        color_echo red "Last command did not execute successfully but is required!" >&2
-    else
-        color_echo red "${*}" >&2
-    fi
-    debug 10 "[$( caller )] ${*}"
-    debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
-    debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
-    debug 0  "FUNCNAME: ${FUNCNAME[*]}"
-    # Exit if we are running as a script
-    if [ -f "${script_full_path}" ]; then
-        exit 1
-    fi
 }
 
 # This function watches a set of files/directories and lets you run commands
@@ -1125,7 +1165,7 @@ function parse_opt_arg {
 
 # Resolve DNS name, returns IP if successful, otherwise name and error code
 function resolve_domain_name {
-    lookup_result="$( (whichs getent && getent ahosts "${1}" | awk '{ print $1 }'| sort -u) || (whichs dscacheutil && dscacheutil -q host -a name "${1}" | grep ip_address | awk '{ print $2 }'| sort -u ))"
+    lookup_result="$( (whichs getent >/dev/null && getent ahosts "${1}" | awk '{ print $1 }'| sort -u) || (whichs dscacheutil && dscacheutil -q host -a name "${1}" | grep ip_address | awk '{ print $2 }'| sort -u ))"
     if [ -z "${lookup_result}" ]; then
         echo "${1}"
         return 1
@@ -2193,12 +2233,13 @@ function test_shopt_decorator {
 # Also supports "local" which will test without using containers.
 function test_shtdlib {
     # Run this function inside bash containers as/if specified
-    if in_array 'local' "${@}" ; then
+    if in_array 'local' "${@:-}" ; then
         if [ "${#}" -ne 1 ] ; then
             supported_bash_versions=( "${@/local}" )
             test_decorator "${FUNCNAME[0]}"
         fi
     else
+        supported_bash_versions=( "${@:-}" )
         test_decorator "${FUNCNAME[0]}" && return
     fi
 
@@ -2209,6 +2250,7 @@ function test_shtdlib {
     for ip in ${local_ip_addresses} ; do
         color_echo cyan "${ip}"
     done
+
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
     color_echo red "Red"
@@ -2218,12 +2260,15 @@ function test_shtdlib {
     color_echo magenta "Magenta"
     color_echo cyan "Cyan"
     color_echo blank "Blank"
+
     # Test decorators
     # shellcheck disable=2015
     shopt -uo pipefail && test_shopt_decorator 'Hello World' || exit_on_fail
+
     assert true
     assert whichs ls
     assert [ 0 -eq 0 ]
+
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     # shellcheck disable=SC1117
@@ -2238,6 +2283,7 @@ function test_shtdlib {
         debug ${i} "Debug Level ${i}"
     done
     verbosity="${orig_verbosity}"
+
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
