@@ -167,7 +167,7 @@ function empty_array {
 }
 
 # Default verbosity, common levels are 0,1,5,10
-verbosity="${verbosity:-1}"
+export verbosity="${verbosity:-1}"
 
 ############################# Deprecated #######################################
 ############## Use variable=${variable:-value} instead  ########################
