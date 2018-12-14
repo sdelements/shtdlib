@@ -217,7 +217,7 @@ function conditional_exit_on_fail {
 # To specify a different umask set the umask_decorator_mask variable to the
 # desired umask.
 function umask_decorator {
-    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+    if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] ; then
         local mask="${umask_decorator_mask:-0007}"
         local original_mask
         original_mask="$(umask)"
@@ -251,7 +251,7 @@ function umask_decorator {
 function shopt_decorator {
     debug 10 "${FUNCNAME} used with ${*}"
     if [ -n "${shopt_decorator_option_value:-}" ]  && [ -n "$(shopt -o "${shopt_decorator_option_name:-}")" ] ; then
-        if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]}" ] ; then
+        if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] ; then
             if shopt -qo "${shopt_decorator_option_name}" ; then
                 # Option is set
                 if ! "${shopt_decorator_option_value}" ; then
@@ -443,12 +443,14 @@ function basename_s {
 # Accepts either the path or name of a variable holding the path
 function finalize_path {
     local setvar
+    assert test -n "${1}"
     # Check if there is a filesystem object matching the path
     if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
+        debug 10 "Assuming path argument: ${1} is a path"
         path="${1}"
         setvar=false
     else
-        debug 5 "Finalizing path for: ${1}"
+        debug 5 "Assuming path argument: ${1} is a variable name"
         declare path="${!1}"
         setvar=true
     fi
@@ -564,40 +566,6 @@ function print_version {
         fi
     else
         (>&2 echo "${error_msg}")
-    fi
-}
-
-# Converts relative paths to full paths, using the best method available
-# Accepts either the path or name of a variable holding the path
-function finalize_path {
-    local setvar
-    assert test -n "${1}"
-    # Check if there is a filesystem object matching the path
-    if [ -e "${1}" ] || [[ "${1}" =~ '/' ]] || [[ "${1}" =~ '~' ]]; then
-        debug 10 "Assuming path argument: ${1} is a path"
-        path="${1}"
-        setvar=false
-    else
-        debug 5 "Confirming argument: ${1} is a variable name"
-        declare path="${!1}"
-        setvar=true
-    fi
-    if [ -n "${path}" ] && [ -e "${path}" ] ; then
-        if [ "$(basename "$(readlink "$(command -v readlink)")")" == 'busybox' ] || [ "${os_family}" == 'MacOSX' ] ; then
-            full_path=$(readlink_m "${path}")
-        else
-            full_path="$(readlink -m "${path}")"
-        fi
-        debug 10 "Finalized path: '${path}' to full path: '${full_path}'"
-        if [ -n "${full_path}" ]; then
-            if ${setvar} ; then
-                export "$1"="${full_path}"
-            else
-                echo "${full_path}"
-            fi
-        fi
-    else
-        debug 5 "Unable to finalize path: ${path}"
     fi
 }
 
