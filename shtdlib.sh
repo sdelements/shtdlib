@@ -193,7 +193,7 @@ function debug {
         if [ -e "${init_tty}" ] ; then
             color_echo yellow "${*:2}" > "${init_tty}"
         else
-            color_echo yellow "${*:2}"
+            color_echo yellow "${*:2}" >&2
         fi
     fi
 }
