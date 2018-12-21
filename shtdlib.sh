@@ -15,6 +15,9 @@
 # patents in process, and are protected by trade secret or copyright law.
 #
 
+# Set a debug log file to be used in addition to stderr/stdout
+# debug_log_file="/tmp/${0}.log"
+
 # If there is no TTY then it's not interactive
 if ! [[ -t 1 ]]; then
     interactive=false
@@ -183,6 +186,10 @@ function init_variable {
 # takes color and message(s) as parameters, valid colors are listed in the constants section
 function color_echo {
     printf "${!1}%s${blank}\\n" "${*:2}"
+    if [ -n "${debug_log_file:-}" ] ; then
+        #shellcheck disable=1117
+        printf '%s - %s\n' "$(date +%F_%T)" "${*:2}" >> "${debug_log_file}"
+    fi
 }
 
 # Debug method for verbose debugging
