@@ -28,7 +28,9 @@ interactive="${interactive:-true}"
 # Create which -s alias (whichs), same as POSIX: -s
 # No output, just return 0 if all of the executables are found, or 1 if some were not found.
 function whichs {
-    command -v "${*}" >> /dev/null
+    # Bash 3.1 does not flush stdout so we use tee to make sure it gets done
+    command -v "${*}" &> /dev/null | tee /dev/null &> /dev/null
+    return "${PIPESTATUS}"
 }
 
 # Set strict mode only for non-interactive (see bash tab completion bug):
@@ -69,6 +71,7 @@ yum help help > /dev/null 2>&1 && os_family='RedHat'
 echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
 if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
 if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
+if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
@@ -96,6 +99,7 @@ if [ "${os_family}" == 'RedHat' ]; then
     elif grep -qEi 'red ?hat' /etc/redhat-release; then
         os_name='redhat';
     fi
+    patch_version=0
 elif [ "${os_family}" == 'Debian' ]; then
     if [ -e '/etc/os-release' ] ; then
         # VERSION_CODENAME is the built-in optional identifier
@@ -112,6 +116,16 @@ elif [ "${os_family}" == 'Debian' ]; then
         minor_version="$(awk -F. '{print $2}' /etc/debian_version)"
         os_name='debian'
     fi
+    patch_version=0
+elif [ "${os_family}" == 'Alpine' ]; then
+    # A safe way to read the version regardless of bash version and buggy
+    # implementations
+    # shellcheck disable=2207
+    command -v mapfile &> /dev/null | tee /dev/null &> /dev/null && mapfile -d. -t full_version < /etc/alpine-release &> /dev/null || full_version=($(awk -F. '{printf("%s %s %s\n", $1, $2, $3)}' /etc/alpine-release))
+    major_version="${full_version[0]}"
+    minor_version="${full_version[1]}"
+    patch_version="${full_version[2]}"
+    os_name='alpine'
 fi
 
 # Store local IP addresses (not localhost)
@@ -2219,13 +2233,18 @@ function test_shtdlib {
     fi
 
     color_echo green "Testing shtdlib functions"
+
+    # Show some basic system stats
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
+    color_echo cyan "OS Name is: ${os_name}"
+    color_echo cyan "OS version is (major.minor.patch): ${major_version}.${minor_version}.${patch_version}"
     color_echo cyan "Local IPs are:"
     for ip in ${local_ip_addresses} ; do
         color_echo cyan "${ip}"
     done
 
+    # Test color output
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
     color_echo red "Red"
@@ -2240,31 +2259,55 @@ function test_shtdlib {
     # shellcheck disable=2015
     shopt -uo pipefail && test_shopt_decorator 'Hello World' || exit_on_fail
 
+    # Test whichs command
+    whichs command && color_echo green "whichs found the command 'command'"
+
+    # Test assert command and make some basic assertions
+    assert true && color_echo green "asserted 'true' is true"
     assert true
     assert whichs ls
     assert [ 0 -eq 0 ]
 
+    # Test array inclusion, argument counting and empty check
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     # shellcheck disable=SC1117
     assert in_array 'a' "${shtdlib_test_array[@]}" && color_echo cyan "'a' is in '${shtdlib_test_array[*]}'"
+    assert [ "$(count_array_elements shtdlib_test_array)" == 7 ] && color_echo green "Found 7 elements in test array"
+    declare -a shtdlib_empty_array
+    assert empty_array shtdlib_empty_array
+
+    # Test verbosity and debug logging
     orig_verbosity="${verbosity:-1}"
-    verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
+    verbosity=1 && color_echo green 'Verbosity set to 1 (should see debug up to 1)'
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
-    verbosity=10 && color_echo green "Verbosity set to 10 (should see debug up to 11)"
+    verbosity=10 && color_echo green 'Verbosity set to 10 (should see debug up to 11)'
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
     verbosity="${orig_verbosity}"
 
+    # Test finalizing a path
     shtdlib_test_variable='/home/test'
     finalize_path shtdlib_test_variable
     finalize_path '~'
     finalize_path './'
     finalize_path '$HOME/test'
 
+    # Test stripping path and exptension from a path
+    assert [ "$(basename_s /tmp/example.file)" == 'example' ] && color_echo green 'Tested basename_s correctly stripped path and extension from a path'
+
+    # Test counting arguments
+    assert [ "$(count_arguments 1 2 3 4)" == 4 ] && color_echo green 'Tested count_arguments with 4 args'
+
+    # Test platform neutral readlink -m/_m implementation
+    tmp_file_path="$(mktemp)"
+    tmp_symlink_dir="$(mktemp -d)"
+    tmp_file_name="$(basename "${tmp_file_path}")"
+    ln -s "${tmp_file_path}" "${tmp_symlink_dir}/${tmp_file_name}"
+    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ]
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
     add_on_sig "rm -f ${tmp_file}"
