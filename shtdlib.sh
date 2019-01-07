@@ -270,7 +270,7 @@ function umask_decorator {
 #     echo "Bash option pipefail is set to false for this code"
 # }
 function shopt_decorator {
-    debug 10 "${FUNCNAME} used with ${*}"
+    debug 10 "${FUNCNAME} called with ${*}"
     if [ -n "${shopt_decorator_option_value:-}" ]  && [ -n "$(shopt -o "${shopt_decorator_option_name:-}")" ] ; then
         if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] ; then
             if shopt -qo "${shopt_decorator_option_name}" ; then
@@ -308,6 +308,7 @@ function shopt_decorator {
             fi
         fi
         # Calling function is the decorator, skip
+        debug 10 "Already decorated, returning 121"
         return 121
     else
         color_echo red "Called ${FUNCNAME[*]} without setting required variables with valid option name/value. The variables shopt_decorator_option_name and shopt_decorator_option_value need to be set to a valid shopt option and a command/function that evaluates true/false, 'true'/'false' are valid commands"
@@ -708,8 +709,7 @@ function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
     # shellcheck disable=2015
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
-
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator" 
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
                                    --event modify
@@ -738,7 +738,10 @@ function add_on_mod {
     on_mod_max_frequency="${max_frequency:-1}"
     on_mod_max_queue_depth="${on_mod_max_queue_depth:-1}"
     for fs_object in "${arguments[@]:1}"; do
-        assert test -e "${fs_object}"
+        if ! [ -e "${fs_object}" ] ; then
+            color_echo red "Unable to find filesystem object '${fs_object}' when running ${FUNCNAME[0]}"
+            return 1
+        fi
         ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
@@ -2216,6 +2219,51 @@ function test_shopt_decorator {
     assert shopt -qo pipefail && color_echo green "Successfully decorated  ${FUNCNAME[0]} with pipefail"
 }
 
+# Test signaling
+function test_signal_process {
+    signal_processor SIGUSR2 'echo "got signal" && exit 42'
+    local sub_pid_0="${!}"
+    signal_processor SIGUSR1 "sleep 2 && kill -s SIGUSR2 ${sub_pid_0} && exit 42"
+    local sub_pid_1="${!}"
+    debug 10 "Spawned sub processes using signal processor with pids: ${sub_pid_0} and ${sub_pid_1}"
+    debug 10 "Active sub processes are: $(pgrep -P ${$})"
+    signal_process "${sub_pid_1}" SIGUSR1
+    debug 10 "Waiting for sub processes to exit"
+    bash -c "sleep 10 && kill ${sub_pid_0} &> /dev/null" &
+    bash -c "sleep 10 && kill ${sub_pid_1} &> /dev/null" &
+    while pgrep -P ${$} > /dev/null ; do
+        wait ${sub_pid_0} &> /dev/null
+        # Make sure the sub process exits with 42
+        assert [ "${?}" == 42 ]
+        color_echo green "Sub process was signaled, responded and properly exited"
+        return 0
+    done
+    color_echo red "Signaling and sub process test failed"
+    return 1
+}
+
+# Test filesystem monitoring/event triggers
+function test_add_on_mod {
+    signal_processor SIGUSR1 'echo "got mod signal" && exit 42'
+    local signaler_pid="${!}"
+    local tmp_file_path
+    tmp_file_path="$(mktemp)"
+    add_on_exit "rm -f ${tmp_file_path}"
+    debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
+    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
+    bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
+    while pgrep -P ${$} > /dev/null ; do
+        wait ${signaler_pid} &> /dev/null
+        # Make sure the sub process exits with 42
+        assert [ "${?}" == 42 ]
+        color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
+        return 0
+    done
+    color_echo red "Filesystem modification monitoring and trigger testing failed"
+    return 1
+}
+
 # Primary Unit Test Function
 # Defaults to testing all bash versions in containers, any/all arguments are
 # assumed to be container image names (bash versions) to test with.
@@ -2307,7 +2355,8 @@ function test_shtdlib {
     tmp_symlink_dir="$(mktemp -d)"
     tmp_file_name="$(basename "${tmp_file_path}")"
     ln -s "${tmp_file_path}" "${tmp_symlink_dir}/${tmp_file_name}"
-    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ]
+    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ] && color_echo green "Sucessfully determined symlink target with readlink_m"
+
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
     add_on_sig "rm -f ${tmp_file}"
@@ -2318,11 +2367,21 @@ function test_shtdlib {
     # shellcheck disable=SC2153
     test "'${TEST_KEY}'" == "'${test_value}'" || exit_on_fail
 
+    # Test version sort
+    sorted_string="$(version_sort '1 0 2.3.2 3.3.3 1.1.1 0.0.1 2m 2.2.2m 4.4a')"
+    assert [ "${sorted_string//[$'\t\r\n ']/ }" == '0 0.0.1 1 1.1.1 2m 2.2.2m 2.3.2 3.3.3 4.4a' ] && color_echo green "Successfully tested version sort"
+
     # Test version comparison
     assert compare_versions '1.1.1 1.2.2test'
     assert [ "$(compare_versions '1.2.2 1.1.1'; echo "${?}")" == '1' ]
     assert  compare_versions '1.0.0 1.1.1 2.2.2'
     assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
+
+    # Test process signaling
+    test_signal_process
+
+    # Test filesystem object activity triggers
+    test_add_on_mod
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
