@@ -761,7 +761,11 @@ function add_on_mod {
                 if [ "${on_mod_max_frequency}" -gt 0 ] && [ "${#sub_processes[@]}" -gt 0 ] ; then
                     if "${on_mod_refresh}" &&  [ "${#sub_processes[@]}" -le "${on_mod_max_queue_depth}" ] ; then
                         sibling_pid="${sub_processes[$(( ${#sub_processes[@]} - 1 ))]}"
-                        sibling_run_time="$(ps h -o etimes -p "${sibling_pid}")"
+                        # Implement a special case for busybox support
+                        # shellcheck disable=2009,2015
+                        sibling_run_time="$(readlink -f "$(which ps)" | grep -q busybox && \
+                           ps -Ao pid,time | grep '^[\t ]*${sibling_pid}[\t ]' | awk '{print $2}' | awk -F: '{for(i=NF;i>=1;i--) printf "%s ", $i;print ""}' | awk '{print $1 + $2 * 60 + $3 * 3600 + $4 * 86400}' || \
+                           ps h -o etimes -p "${sibling_pid}")"
                         delta=$(( on_mod_max_frequency - sibling_run_time))
                         if [ "${delta}" -gt 0 ] ; then
                             sleep "${delta}"
@@ -2227,7 +2231,7 @@ function test_signal_process {
     local sub_pid_1="${!}"
     debug 10 "Spawned sub processes using signal processor with pids: ${sub_pid_0} and ${sub_pid_1}"
     debug 10 "Active sub processes are: $(pgrep -P ${$})"
-    signal_process "${sub_pid_1}" SIGUSR1
+    signal_process "${sub_pid_1}" SIGUSR1 > /dev/null
     debug 10 "Waiting for sub processes to exit"
     bash -c "sleep 10 && kill ${sub_pid_0} &> /dev/null" &
     bash -c "sleep 10 && kill ${sub_pid_1} &> /dev/null" &
@@ -2251,6 +2255,7 @@ function test_add_on_mod {
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
     add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
@@ -2258,6 +2263,8 @@ function test_add_on_mod {
         # Make sure the sub process exits with 42
         assert [ "${?}" == 42 ]
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
+        debug 10 "Signaling mod_watcher ${mod_watcher_pid} to exit"
+        kill "${mod_watcher_pid}"
         return 0
     done
     color_echo red "Filesystem modification monitoring and trigger testing failed"
