@@ -2166,7 +2166,7 @@ function manage_service {
         debug 10 "Checking command, '${command}', to determine if we can run it on this system"
 
         # Check if the path to the command exists
-        path=$(echo "${command}" | cut -d' ' -f1)
+        local path=$(echo "${command}" | cut -d' ' -f1)
         if [[ -e "${path}" ]]; then
             debug 10 "Path to command found: '${path}'"
 
