@@ -762,7 +762,7 @@ function add_on_mod {
                     if "${on_mod_refresh}" &&  [ "${#sub_processes[@]}" -le "${on_mod_max_queue_depth}" ] ; then
                         sibling_pid="${sub_processes[$(( ${#sub_processes[@]} - 1 ))]}"
                         # Implement a special case for busybox support
-                        # shellcheck disable=2009,2015
+                        # shellcheck disable=2009,2015,2230
                         sibling_run_time="$(readlink -f "$(which ps)" | grep -q busybox && \
                            ps -Ao pid,time | grep '^[\t ]*${sibling_pid}[\t ]' | awk '{print $2}' | awk -F: '{for(i=NF;i>=1;i--) printf "%s ", $i;print ""}' | awk '{print $1 + $2 * 60 + $3 * 3600 + $4 * 86400}' || \
                            ps h -o etimes -p "${sibling_pid}")"
@@ -2225,12 +2225,12 @@ function test_shopt_decorator {
 
 # Test signaling
 function test_signal_process {
-    signal_processor SIGUSR2 'echo "got signal" && exit 42'
+    signal_processor SIGUSR2 'exit 42' > /dev/null
     local sub_pid_0="${!}"
-    signal_processor SIGUSR1 "sleep 2 && kill -s SIGUSR2 ${sub_pid_0} && exit 42"
+    signal_processor SIGUSR1 "sleep 2 && kill -s SIGUSR2 ${sub_pid_0} && exit 42" > /dev/null
     local sub_pid_1="${!}"
     debug 10 "Spawned sub processes using signal processor with pids: ${sub_pid_0} and ${sub_pid_1}"
-    debug 10 "Active sub processes are: $(pgrep -P ${$})"
+    debug 10 "Active sub processes are: $(pgrep -P ${$} | tr '\n' ' ')"
     signal_process "${sub_pid_1}" SIGUSR1 > /dev/null
     debug 10 "Waiting for sub processes to exit"
     bash -c "sleep 10 && kill ${sub_pid_0} &> /dev/null" &
@@ -2248,7 +2248,7 @@ function test_signal_process {
 
 # Test filesystem monitoring/event triggers
 function test_add_on_mod {
-    signal_processor SIGUSR1 'echo "got mod signal" && exit 42'
+    signal_processor SIGUSR1 'exit 42' > /dev/null
     local signaler_pid="${!}"
     local tmp_file_path
     tmp_file_path="$(mktemp)"
@@ -2344,12 +2344,12 @@ function test_shtdlib {
     done
     verbosity="${orig_verbosity}"
 
-    # Test finalizing a path
+    # Test finalizing paths
     shtdlib_test_variable='/home/test'
-    finalize_path shtdlib_test_variable
-    finalize_path '~'
-    finalize_path './'
-    finalize_path '$HOME/test'
+    finalize_path shtdlib_test_variable > /dev/null
+    finalize_path '~' > /dev/null
+    finalize_path './' > /dev/null
+    finalize_path '$HOME/test' > /dev/null
 
     # Test stripping path and exptension from a path
     assert [ "$(basename_s /tmp/example.file)" == 'example' ] && color_echo green 'Tested basename_s correctly stripped path and extension from a path'
