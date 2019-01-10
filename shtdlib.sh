@@ -2139,6 +2139,49 @@ function check_set_persist_random_variable {
     fi
 }
 
+function manage_service {
+    # Ensure all arguments are passed in
+    local items=( ${@} )
+    assert [ ${#items[@]} -eq 2 ]
+
+    # Set args into meaningful names
+    local service="${1}"
+    local action="${2}"
+
+    # Disable paging when using systemd
+    if command -v systemd &> /dev/null; then
+        export SYSTEMD_PAGER='cat'
+    fi
+
+    local commands=("/etc/init.d/${service} ${action}")     # init.d
+    commands+=("/usr/sbin/service ${service} ${action}")    # Old Redhat
+    commands+=("/sbin/service ${service} ${action}")        # Old Debian
+    commands+=("/bin/systemctl ${action} ${service}")       # Redhat systemd
+    commands+=("/usr/bin/systemctl ${action} ${service}")   # Debian/other systemd
+    commands+=("${action} ${service}")                      # Upstart
+
+    # Loop though each command
+    local command
+    for command in "${commands[@]}"; do
+        debug 10 "Checking command, '${command}', to determine if we can run it on this system"
+
+        # Check if the path to the command exists
+        path=$(echo "${command}" | cut -d' ' -f1)
+        if [[ -e "${path}" ]]; then
+            debug 10 "Path to command found: '${path}'"
+
+            # Run command
+            ${command}
+            return "${?}"
+        else
+            debug 10 "Path to command not found: '${path}'"
+        fi
+    done
+
+    debug 10 "Exhausted init commands, try again with debug/verbosity for more information."
+    return 1
+}
+
 alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,**********///****************************************///,    .. .....**/////*,***//////////////////*/////////***
 > ,,,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,********/////////////////////////////////////********************,,,**///////////////////,,**///////////////////////////*///
 > ,,,,,,************,,,,,,,,,,,,,......   .,*/**/*///////*//////////////////////////////******************,,,,**///////////////,,,**///////////////*//(//////////
