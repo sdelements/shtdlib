@@ -331,6 +331,46 @@ function test_decorator {
     return 1
 }
 
+# Imports/Sources an external script if it's not already been imported/sourced
+# or is being imported/sourced as determined by BASH_SOURCE
+# Only accepts one argument, the file to source
+declare -a sourced_imported_files
+sourced_imported_files=()
+function import {
+    assert test -n "${0}"
+    assert test -e "${0}"
+    if whichs shasum; then
+        hasher='shasum'
+    elif whichs md5sum; then
+        hasher='md5sum'
+    elif whichs ckhsum; then
+        hasher='cksum'
+    else
+        debug 1 "Unable to find a valid hashing command, blindly importing/sourcing!"
+    fi
+    # Create a hash of the target file
+    target_file_hash="$("${hasher}" "${1}")"
+
+    # Add all files in source history to the list of imported files
+    for source_file in "${BASH_SOURCE[@]}"; do
+        source_file_hash="$("${hasher}" "${source_file}" | awk '{print $0}')"
+        if ! in_array "${source_file_hash}" "${sourced_imported_files[@]}" ; then
+            sourced_imported_files+=( "${source_file_hash}" )
+        fi
+    done
+
+    # Check if file has already been sourced/imported
+    if in_array "${target_file_hash}" "${sourced_imported_files[@]}" ; then
+        debug 5 "Source file ${1} has already been imported/sourced, skipping"
+        return 1
+    fi
+
+    # Finally import/source the file if needed
+    debug 7 "Sourcing file ${1}"
+    sourced_imported_files+=( "${target_file_hash}" )
+    # shellcheck disable=1090
+    source "${1}" && return 0
+}
 
 # A platform (readlink implementation) neutral way to follow symlinks
 function readlink_m {
