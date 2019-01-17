@@ -2409,7 +2409,7 @@ function test_shtdlib {
 
     test_create_secure_tmp
 
-    test_extract
+    #test_extract
 }
 
 # Test bash version
