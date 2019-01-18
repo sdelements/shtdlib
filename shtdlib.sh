@@ -910,7 +910,8 @@ function create_secure_tmp {
     dir=${3:-}
     if [ -d "${dir}" ]; then
         if [ "${os_type}" == 'Linux' ]; then
-            secure_tmp_object="$(mktemp ${type_flag} --tmpdir="${dir}" -q )"
+            echo yes
+            secure_tmp_object="$(mktemp ${type_flag} -p "${dir}" -q )"
         else
             TMPDIR="${3}"
             secure_tmp_object="$(mktemp -t tmp -q)"
