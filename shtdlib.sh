@@ -935,8 +935,6 @@ function create_secure_tmp {
         exit_on_fail "${secure_tmp_object}"
     fi
 
-    #Tmp file should not have execute permission
-    #chmod 0700 "${secure_tmp_object}" || exit_on_fail
     umask "${original_umask}" || exit_on_fail
 
     # Store temp file/dir path into the caller's variable
