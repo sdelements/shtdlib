@@ -910,7 +910,7 @@ function create_secure_tmp {
     dir=${3:-}
     if [ -d "${dir}" ]; then
         if [ "${os_type}" == 'Linux' ]; then
-            secure_tmp_object="$(mktemp ${type_flag} --tmpdir="${dir}" -q )"
+            secure_tmp_object="$(mktemp ${type_flag} -p "${dir}" -q )"
         else
             TMPDIR="${3}"
             secure_tmp_object="$(mktemp -t tmp -q)"
@@ -934,7 +934,7 @@ function create_secure_tmp {
     if [ ${?} -ne 0 ]; then
         exit_on_fail "${secure_tmp_object}"
     fi
-    chmod 0700 "${secure_tmp_object}" || exit_on_fail
+
     umask "${original_umask}" || exit_on_fail
 
     # Store temp file/dir path into the caller's variable
@@ -2245,6 +2245,48 @@ function test_shopt_decorator {
     assert shopt -qo pipefail && color_echo green "Successfully decorated  ${FUNCNAME[0]} with pipefail"
 }
 
+
+# Test function for create_secure_tmp function
+function test_create_secure_tmp {
+    local tmp_file
+    local tmp_dir
+
+    # Test 2 arguments
+    create_secure_tmp "tmp_file" "file"
+    create_secure_tmp "tmp_dir" "dir"
+
+    assert [ -e "${tmp_file}" ]
+    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
+    echo "test" > "${tmp_file}"
+    assert grep test ${tmp_file} > /dev/null
+
+    assert [ -e "${tmp_dir}" ] 
+    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
+    touch "${tmp_dir}/test"
+    assert [ -e "${tmp_dir}/test" ]
+
+    # Test 3 arguments
+    create_secure_tmp "tmp_file2" "file" "${tmp_dir}"
+    create_secure_tmp "tmp_file3" "file" "/tmp/tmp_file3"
+    create_secure_tmp "tmp_dir2" "dir" "/tmp/tmp.new_dir"
+
+    assert [ -e "${tmp_file}" ]
+    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
+    echo "test" > ${tmp_file}
+    assert grep test ${tmp_file} > /dev/null 
+
+    assert [ -e "${tmp_file}" ]
+    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
+    echo "test" > ${tmp_file}
+    assert grep test ${tmp_file} > /dev/null
+
+    assert [ -e "${tmp_dir}" ]
+    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
+    
+    color_echo green 'Temporary files and directories successfully created and tested'
+    return 0
+}
+
 # Primary Unit Test Function
 # Defaults to testing all bash versions in containers, any/all arguments are
 # assumed to be container image names (bash versions) to test with.
@@ -2326,6 +2368,8 @@ function test_shtdlib {
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
+
+    test_create_secure_tmp
 }
 
 # Test bash version
