@@ -197,7 +197,7 @@ function color_echo {
 # the stdin/stdout and writes directly to the terminal
 function debug {
     if [ "${verbosity:-1}" -ge "${1}" ]; then
-        if [ -e "${init_tty}" ] ; then
+        if [ -w "${init_tty}" ] ; then
             color_echo yellow "${*:2}" > "${init_tty}"
         else
             color_echo yellow "${*:2}" >&2
