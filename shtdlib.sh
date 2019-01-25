@@ -339,6 +339,7 @@ sourced_imported_files=()
 function import {
     assert test -n "${0}"
     assert test -e "${0}"
+    local hasher
     if whichs shasum; then
         hasher='shasum'
     elif whichs md5sum; then
@@ -347,6 +348,8 @@ function import {
         hasher='cksum'
     else
         debug 1 "Unable to find a valid hashing command, blindly importing/sourcing!"
+        # shellcheck disable=1090
+        source "${1}" && return 0
     fi
     # Create a hash of the target file
     target_file_hash="$("${hasher}" "${1}")"
@@ -2206,7 +2209,8 @@ function manage_service {
         debug 10 "Checking command, '${command}', to determine if we can run it on this system"
 
         # Check if the path to the command exists
-        local path=$(echo "${command}" | cut -d' ' -f1)
+        local path
+        path="$(echo "${command}" | cut -d' ' -f1)"
         if [[ -e "${path}" ]]; then
             debug 10 "Path to command found: '${path}'"
 
