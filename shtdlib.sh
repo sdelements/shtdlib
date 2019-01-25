@@ -2337,7 +2337,7 @@ function test_shtdlib {
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
-    verbosity=10 && color_echo green 'Verbosity set to 10 (should see debug up to 11)'
+    verbosity=10 && color_echo green 'Verbosity set to 10 (should see debug up to 10)'
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
