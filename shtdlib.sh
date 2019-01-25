@@ -2238,7 +2238,7 @@ function test_signal_process {
     while pgrep -P ${$} > /dev/null ; do
         wait ${sub_pid_0} &> /dev/null
         # Make sure the sub process exits with 42
-        assert [ "${?}" == 42 ]
+        assert [ "${?}" == '42' ]
         color_echo green "Sub process was signaled, responded and properly exited"
         return 0
     done
@@ -2261,7 +2261,7 @@ function test_add_on_mod {
     while pgrep -P ${$} > /dev/null ; do
         wait ${signaler_pid} &> /dev/null
         # Make sure the sub process exits with 42
-        assert [ "${?}" == 42 ]
+        assert [ "${?}" == '42' ]
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
         debug 10 "Signaling mod_watcher ${mod_watcher_pid} to exit"
         kill "${mod_watcher_pid}"
@@ -2319,7 +2319,6 @@ function test_shtdlib {
 
     # Test assert command and make some basic assertions
     assert true && color_echo green "asserted 'true' is true"
-    assert true
     assert whichs ls
     assert [ 0 -eq 0 ]
 
