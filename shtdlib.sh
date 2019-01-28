@@ -2287,6 +2287,42 @@ function test_create_secure_tmp {
     return 0
 }
 
+function test_extract {
+    # Create all different tars to use for testing
+    declare -A archives
+    local compress_file
+
+    create_secure_tmp "extract_tmp" "dir"
+    create_secure_tmp "compress_file" "file" "${extract_tmp}"
+
+    echo "compressed message" > ${compress_file}
+
+    # The archive extension associated with the compression command
+    archives+=( [".tar.bz2"]="tar jcf"  \
+                [".tar.gz"]="tar czf"   \
+                [".bz2"]="bzip2"        \
+                [".rar"]="unrar x"      \
+                [".tar"]="tar xvf"      \
+                [".pyball"]="tar xvf"   \
+                [".tbz2"]="tar xvjf"    \
+                [".tgz"]="tar xvzf"     \
+                [".zip"]="zip"          \
+                [".z"]="nothing"        \
+                [".7z"]="7za"           \
+                [".tar.gpg"]="gpg"      \
+                [".tgz.gpg"]="gpg"      \
+                [".tar.gz.gpg"]="gpg"   \
+                [".gz"]="gzip")  
+    
+    # Test each archive format
+    for ext in "${!archives[@]}"; do
+        ${archives[$ext]} ${compress_file}${ext} ${compress_file}
+        echo "###############################"
+    done
+
+    return 0
+}
+
 # Primary Unit Test Function
 # Defaults to testing all bash versions in containers, any/all arguments are
 # assumed to be container image names (bash versions) to test with.
@@ -2370,6 +2406,8 @@ function test_shtdlib {
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 
     test_create_secure_tmp
+
+    test_extract
 }
 
 # Test bash version
