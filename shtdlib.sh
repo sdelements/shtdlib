@@ -1553,7 +1553,7 @@ function install_package {
             return "${exit_status}"
         ;;
         *)
-            color_echo red "Unsupported package for install_package function" >&2
+            color_echo red "Unsupported platform '${os_family}' for install_package function" >&2
             return 1
         ;;
     esac
