@@ -1528,7 +1528,7 @@ function install_gem {
 function install_package {
     case "${os_family}" in
         'Debian')
-            apt-get update
+            sudo apt-get update
             exit_status=127
             for package_name in "${@}"; do
                 sudo apt-get --assume-yes --quiet install "${package_name}" &&  exit_status="${?}" && break
@@ -1536,7 +1536,7 @@ function install_package {
             return "${exit_status}"
         ;;
         'RedHat')
-            yum update
+            sudo yum update
             exit_status=127
             for package_name in "${@}"; do
                 sudo yum -assumeyes --quiet install  "${package_name}" &&  exit_status="${?}" && break
@@ -1552,6 +1552,15 @@ function install_package {
             done
             return "${exit_status}"
         ;;
+        'Alpine')
+            sudo apk update
+            exit_status=127
+            for package_name in "${@}"; do
+                sudo apk add "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+
         *)
             color_echo red "Unsupported platform '${os_family}' for install_package function" >&2
             return 1
