@@ -2338,7 +2338,7 @@ function test_extract {
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
-        assert extract < ${compress_file}${ext} | ${extract_dir} || color_echo red "failed to extract ${compress_file}${ext} by stdin"
+        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} || color_echo red "failed to extract ${compress_file}${ext} by stdin"
         assert grep "${compress_msg}" ${extracted_file} > /dev/null && color_echo green "${ext} successfully extracted"
         ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
         echo "###############################"
