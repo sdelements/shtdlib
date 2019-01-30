@@ -2323,25 +2323,24 @@ function test_extract {
         local extracted_file="${extract_dir}${compress_file}"
 
         if ! whichs ${command% *}; then
-            color_echo red "${command% *} command does not exist, skipping test"
-            continue
+            color_echo red "${command% *} command does not exist, skipping test" && continue
         fi
 
-        echo "Testing ${ext}"
         if ! archive_err="$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)"; then
-            color_echo red "Archiving using $command failed with the following error: ${archive_err}"
-            continue
+            color_echo red "Compressing ${command} failed: ${archive_err}" && continue
         fi
         
         #Test extract by filename
-        assert extract ${compress_file}${ext} ${extract_dir} || color_echo red "failed to extract ${compress_file}${ext}"
-        assert grep "${compress_msg}" ${extracted_file} &> /dev/null && color_echo green "${ext} successfully extracted"
+        assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null || color_echo red "Extract file by command% *} failed"
+        assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
-        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} || color_echo red "failed to extract ${compress_file}${ext} by stdin"
-        assert grep "${compress_msg}" ${extracted_file} &> /dev/null && color_echo green "${ext} successfully extracted"
+        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} 2>&1 1>/dev/null || color_echo red "Extract stdin by ${command% *} failed"
+        assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
+
+        #color_echo green "${ext} successfully extracted by stdin"
     done
 
     return 0
