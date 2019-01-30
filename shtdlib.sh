@@ -1528,18 +1528,18 @@ function install_gem {
 function install_package {
     case "${os_family}" in
         'Debian')
-            sudo apt-get update
+            ${priv_esc_cmd} apt-get update
             exit_status=127
             for package_name in "${@}"; do
-                sudo apt-get --assume-yes --quiet install "${package_name}" &&  exit_status="${?}" && break
+                ${priv_esc_cmd} sudo apt-get --assume-yes --quiet install "${package_name}" &&  exit_status="${?}" && break
             done
             return "${exit_status}"
         ;;
         'RedHat')
-            sudo yum update
+            ${priv_esc_cmd} yum update
             exit_status=127
             for package_name in "${@}"; do
-                sudo yum -assumeyes --quiet install  "${package_name}" &&  exit_status="${?}" && break
+                ${priv_esc_cmd} yum -assumeyes --quiet install  "${package_name}" &&  exit_status="${?}" && break
             done
             return "${exit_status}"
         ;;
@@ -1553,10 +1553,10 @@ function install_package {
             return "${exit_status}"
         ;;
         'Alpine')
-            sudo apk update
+            ${priv_esc_cmd} apk update
             exit_status=127
             for package_name in "${@}"; do
-                sudo apk add "${package_name}" &&  exit_status="${?}" && break
+                ${priv_esc_cmd} apk add "${package_name}" &&  exit_status="${?}" && break
             done
             return "${exit_status}"
         ;;
