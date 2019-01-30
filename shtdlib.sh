@@ -2310,6 +2310,7 @@ function test_add_on_mod {
     add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
+    ps -Afl
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         wait ${signaler_pid} &> /dev/null
