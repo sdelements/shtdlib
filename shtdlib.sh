@@ -2307,16 +2307,19 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/stdout" "${tmp_file_path}" &
+    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
+    ps -Afl
+    kill --help
+    command -v pkill
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         wait ${signaler_pid} &> /dev/null
         # Make sure the sub process exits with 42
         return_status="${?}"
         if [ "${return_status}" != '42' ] ; then
-            debug 1 "Got return status ${return_status} when waiting for PID ${signaler_pid} to exit"
+            debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
             exit_on_fail
         fi
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
