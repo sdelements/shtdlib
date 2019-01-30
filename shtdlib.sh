@@ -2315,6 +2315,7 @@ function test_add_on_mod {
     which pkill
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
+        debug 10 "Waiting for PID ${signaler_pid} to exit"
         wait ${signaler_pid} &> /dev/null
         # Make sure the sub process exits with 42
         return_status="${?}"
