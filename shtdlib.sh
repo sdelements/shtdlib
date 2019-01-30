@@ -2331,12 +2331,12 @@ function test_extract {
         fi
         
         #Test extract by filename
-        assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null || color_echo red "Extract file by command% *} failed"
+        assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null 
         assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
-        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} 2>&1 1>/dev/null || color_echo red "Extract stdin by ${command% *} failed"
+        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} 2>&1 1>/dev/null
         assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
 
