@@ -1521,6 +1521,45 @@ function install_gem {
     return 1
 }
 
+# A platform independent way to install a package, accepts any number of
+# arguments all of which are assumed to be name variations of a package that
+# should be tried, will only error if none of the arguments represent a valid
+# package name.
+function install_package {
+    case "${os_family}" in
+        'Debian')
+            apt-get update
+            exit_status=127
+            for package_name in "${@}"; do
+                sudo apt-get --assume-yes --quiet install "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        'RedHat')
+            yum update
+            exit_status=127
+            for package_name in "${@}"; do
+                sudo yum -assumeyes --quiet install  "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        'MacOSX')
+            assert whichs brew
+            brew update
+            exit_status=127
+            for package_name in "${@}"; do
+                brew install "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        *)
+            color_echo red "Unsupported package for install_package function" >&2
+            return 1
+        ;;
+    esac
+}
+
+
 function validate_hostfile {
     assigned_ip_addresses="$(ip -4 addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
     ip_address_in_hostfile="$(getent hosts | grep -e "\\b$(hostname)\\b" | awk '{print $1}')"
@@ -2249,6 +2288,11 @@ function test_signal_process {
 
 # Test filesystem monitoring/event triggers
 function test_add_on_mod {
+    if ! ( whichs inotifywait || whichs fswatch ) ; then
+        debug 4 "Unable to locate inotify or fswatch, trying to install them"
+        install_package inotify-tools fswatch
+    fi
+
     signal_processor SIGUSR1 'exit 42' > /dev/null
     local signaler_pid="${!}"
     local tmp_file_path
