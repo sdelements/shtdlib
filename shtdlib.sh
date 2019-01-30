@@ -2276,9 +2276,8 @@ function test_signal_process {
     bash -c "sleep 10 && kill ${sub_pid_1} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for ${sub_pid_0}"
-        wait ${sub_pid_0} &> /dev/null
         # Make sure the sub process exits with 42
-        assert [ "${?}" == '42' ]
+        wait ${sub_pid_0} &> /dev/null || assert [ "${?}" == '42' ]
         color_echo green "Sub process was signaled, responded and properly exited"
         return 0
     done
