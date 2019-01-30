@@ -2289,7 +2289,7 @@ function test_create_secure_tmp {
 
 function test_extract {
     # Create all different tars to use for testing
-    declare -A archives
+    declare -a archives
     local compress_file
     local compress_msg="secretsecret"
 
@@ -2298,28 +2298,29 @@ function test_extract {
 
     echo ${compress_msg} > ${compress_file}
 
-    archives+=( [".tar.bz2"]="tar jcf"  \
-                [".tbz2"]="tar jcf"     \
-                [".tar.gz"]="tar czf"   \
-                [".tgz"]="tar czf"      \
-                [".tar"]="tar f"        \
-                [".pyball"]="tar f"     \
-                [".bz2"]="bzip2"        \
-                [".zip"]="zip"          \
-                [".z"]="nothing"        \
-                [".7z"]="7za"           \
-                [".rar"]="unrar x"      \
-                [".tar.gpg"]="gpg"      \
-                [".tgz.gpg"]="gpg"      \
-                [".tar.gz.gpg"]="gpg")   \
+    archives=(  ".tar.bz2|tar jcf" \
+                ".tbz2|tar jcf"    \
+                ".tar.gz|tar czf"  \
+                ".tgz|tar czf"     \
+                ".tar|tar f"       \
+                ".pyball|tar f"    \
+                ".bz2|bzip2"       \
+                ".zip|zip"         \
+                ".z|nothing"       \
+                ".7z|7za"          \
+                ".rar|unrar x"     \
+                ".tar.gpg|gpg"     \
+                ".tgz.gpg|gpg"     \
+                ".tar.gz.gpg|gpg")   
                 #[".gz"]="gzip")
 
-    for ext in "${!archives[@]}"; do
+    for archive in "${archives[@]}"; do
         #Create an extract directory inside the tmp directory
         create_secure_tmp "extract_dir" "dir" "${extract_tmp}/extract_${ext//.}"
 
         local archive_err
-        local command=${archives[$ext]}
+        local ext=${archive%|*}
+        local command=${archive#*|}
         local extracted_file="${extract_dir}${compress_file}"
 
         if ! whichs ${command% *}; then
@@ -2327,11 +2328,11 @@ function test_extract {
         fi
 
         if ! archive_err="$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)"; then
-            color_echo red "Compressing ${command} failed: ${archive_err}" && continue
+            color_echo red "Compressing ${command} failed with error: \n\t${archive_err}" && continue
         fi
-        
+
         #Test extract by filename
-        assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null 
+        assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null
         assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
@@ -2340,7 +2341,7 @@ function test_extract {
         assert grep "${compress_msg}" ${extracted_file} &> /dev/null
         ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
 
-        #color_echo green "${ext} successfully extracted by stdin"
+        color_echo green "${ext} successfully extracted by stdin"
     done
 
     return 0
