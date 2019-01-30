@@ -2318,6 +2318,7 @@ function test_extract {
         #Create an extract directory inside the tmp directory
         create_secure_tmp "extract_dir" "dir" "${extract_tmp}/extract_${ext//.}"
 
+        local archive_err
         local command=${archives[$ext]}
         local extracted_file="${extract_dir}${compress_file}"
 
@@ -2326,22 +2327,21 @@ function test_extract {
             continue
         fi
 
-        echo "${command} ${compress_file}${ext} ${compress_file}"
-        if ! ${command} ${compress_file}${ext} ${compress_file} &> /dev/null ; then
-            color_echo red "$command failed"
+        echo "Testing ${ext}"
+        if ! archive_err="$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)"; then
+            color_echo red "Archiving using $command failed with the following error: ${archive_err}"
             continue
         fi
         
         #Test extract by filename
         assert extract ${compress_file}${ext} ${extract_dir} || color_echo red "failed to extract ${compress_file}${ext}"
-        assert grep "${compress_msg}" ${extracted_file} > /dev/null && color_echo green "${ext} successfully extracted"
+        assert grep "${compress_msg}" ${extracted_file} &> /dev/null && color_echo green "${ext} successfully extracted"
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
         assert extract < "cat ${compress_file}${ext}" | ${extracted_file} || color_echo red "failed to extract ${compress_file}${ext} by stdin"
-        assert grep "${compress_msg}" ${extracted_file} > /dev/null && color_echo green "${ext} successfully extracted"
+        assert grep "${compress_msg}" ${extracted_file} &> /dev/null && color_echo green "${ext} successfully extracted"
         ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
-        echo "###############################"
     done
 
     return 0
