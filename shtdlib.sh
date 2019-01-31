@@ -647,7 +647,7 @@ function priv_esc_with_env {
 function signal_processor {
     local signal="${1}"
     local command="${*:2}"
-    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" &>> /dev/stdout &
+    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" &> /dev/stdout &
     echo "${!}"
 }
 
@@ -2315,7 +2315,7 @@ function test_add_on_mod {
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
         ps -Afl
-        wait ${signaler_pid} &>> /dev/stdout
+        wait ${signaler_pid} &> /dev/stdout
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
