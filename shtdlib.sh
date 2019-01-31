@@ -662,6 +662,7 @@ if [[ "${1}" =~ ^[0-9]+$ ]] ; then
         kill "${1}"
     fi
 else
+    assert whichs pkill
     if [ "${2}" != '' ] ; then
         pkill --exact --signal "${2}" "${1}"
     else
