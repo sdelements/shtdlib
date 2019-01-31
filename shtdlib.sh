@@ -647,7 +647,7 @@ function priv_esc_with_env {
 function signal_processor {
     local signal="${1}"
     local command="${*:2}"
-    bash -c "trap ${command} ${signal} && while true; do sleep 1 ; done" &> /dev/null &
+    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" & #&> /dev/null &
     echo "${!}"
 }
 
@@ -2314,10 +2314,12 @@ function test_add_on_mod {
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
+        ps -Afl
         return_status="$(wait ${signaler_pid} &> /dev/null ; echo ${?})"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
+            ps -Afl
             exit_on_fail
         fi
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
