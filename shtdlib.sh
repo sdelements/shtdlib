@@ -2312,7 +2312,7 @@ function test_add_on_mod {
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     ps -Afl
-    kill
+    kill || echo kill help
     command -v pkill || echo no pkill
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
