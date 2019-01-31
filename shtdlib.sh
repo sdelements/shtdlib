@@ -2315,7 +2315,7 @@ function test_add_on_mod {
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
         ps -Afl
-        wait ${signaler_pid} &> /dev/null || return_status="${?}" && return_status="${?}" # Mask exit status
+        return_status="$(wait ${signaler_pid} &> /dev/null ; echo ${?})"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
