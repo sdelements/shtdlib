@@ -654,7 +654,7 @@ function signal_processor {
 # Signals a process by either exact name or pid
 # Accepts name/pid as first parameter and optionally signal as second parameter
 function signal_process {
-debug 8 "Signaling ${1} with ${2:-SIGTERM}"
+debug 8 "Signaling PID: ${1} with signal: ${2:-SIGTERM}"
 if [[ "${1}" =~ ^[0-9]+$ ]] ; then
     if [ "${2}" != '' ] ; then
         kill -s "${2}" "${1}"
@@ -781,7 +781,7 @@ function add_on_mod {
                         debug 10 "Discarding redundant/unwanted event since refresh is disabled or max queue depth has been reached"
                     fi
                 else
-                    debug 7 "Running: ${arguments} with parameter: ${mod_fs_object} in subshell with pid ${$}"
+                    debug 7 "Running command: '${arguments} ${mod_fs_object}' in subshell with PID: ${$}"
                     ${arguments} "${mod_fs_object}"
                 fi
             ) &
@@ -2314,6 +2314,7 @@ function test_add_on_mod {
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
+        ps -Afl
         wait ${signaler_pid} &> /dev/null || return_status="${?}" && return_status="${?}" # Mask exit status
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
