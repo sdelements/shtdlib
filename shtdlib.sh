@@ -2318,6 +2318,7 @@ function test_add_on_mod {
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
+            ps -Afl
             exit_on_fail
         fi
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
