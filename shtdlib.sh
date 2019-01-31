@@ -2311,15 +2311,11 @@ function test_add_on_mod {
     add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
-    ps -Afl
-    kill || echo kill help
-    command -v pkill || echo no pkill
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        wait ${signaler_pid} &> /dev/null
+        wait ${signaler_pid} &> /dev/null || return_status="${?}" && return_status="${?}" # Mask exit status
         # Make sure the sub process exits with 42
-        return_status="${?}"
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
             exit_on_fail
