@@ -2330,6 +2330,7 @@ function test_extract {
             archive_err=$(${command} < ${compress_file} > ${compress_file}${ext})
             ;;
         gpg)
+            continue
             ;;
         7za)
             archive_err=$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)
