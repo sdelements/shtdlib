@@ -2345,7 +2345,7 @@ function test_extract {
 
         #Test extract by filename
         assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null
-        assert grep "${compress_msg}" ${extract_dir}/${file}
+        assert grep "${compress_msg}" ${extract_dir}/${file} 2>&1 1>/dev/null
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
