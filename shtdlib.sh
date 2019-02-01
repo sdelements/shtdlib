@@ -2290,58 +2290,73 @@ function test_create_secure_tmp {
 function test_extract {
     # Create all different tars to use for testing
     declare -a archives
-    local compress_file
     local compress_msg="secretsecret"
 
     create_secure_tmp "extract_tmp" "dir"
     create_secure_tmp "compress_file" "file" "${extract_tmp}"
-
     echo ${compress_msg} > ${compress_file}
 
-    archives=(  ".tar.bz2|tar jcf" \
-                ".tbz2|tar jcf"    \
-                ".tar.gz|tar czf"  \
-                ".tgz|tar czf"     \
-                ".tar|tar f"       \
-                ".pyball|tar f"    \
-                ".bz2|bzip2"       \
-                ".zip|zip"         \
-                ".z|nothing"       \
-                ".7z|7za"          \
-                ".rar|unrar x"     \
-                ".tar.gpg|gpg"     \
-                ".tgz.gpg|gpg"     \
-                ".tar.gz.gpg|gpg")   
-                #[".gz"]="gzip")
+    archives=(  ".tar.bz2|tar jcf"          \
+                ".tbz2|tar jcf"             \
+                ".tar.gz|tar czf"           \
+                ".tgz|tar czf"              \
+                ".tar|tar cf"               \
+                ".pyball|tar cf"            \
+                ".bz2|bzip2 -z"             \
+                ".zip|zip"                  \
+                ".gz|gzip"                  \
+                ".z|compress"               \
+                ".7z|7za a"                  \
+                ".rar|rar a"                \
+                ".tar.gpg|tar cf gpg -e"    \
+                ".tgz.gpg|tar czf gpg -e"   \
+                ".tar.gz.gpg|tar czf gpg -e")
 
     for archive in "${archives[@]}"; do
-        #Create an extract directory inside the tmp directory
-        create_secure_tmp "extract_dir" "dir" "${extract_tmp}/extract_${ext//.}"
-
         local archive_err
         local ext=${archive%|*}
         local command=${archive#*|}
-        local extracted_file="${extract_dir}${compress_file}"
+        local path=$(dirname ${compress_file})
+        local file=$(basename ${compress_file})
 
-        if ! whichs ${command% *}; then
-            color_echo red "${command% *} command does not exist, skipping test" && continue
+        create_secure_tmp "extract_dir" "dir" "${extract_tmp}/extract_${ext//.}"
+
+        if ! whichs ${command%% *}; then
+            color_echo red "${command%% *} does not exist, skipping test" && continue
         fi
 
-        if ! archive_err="$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)"; then
-            color_echo red "Compressing ${command} failed with error: \n\t${archive_err}" && continue
+        case ${command%% *} in
+        gzip|bzip2)
+            archive_err=$(${command} < ${compress_file} > ${compress_file}${ext})
+            ;;
+        gpg)
+            ;;
+        7za)
+            archive_err=$(${command} ${compress_file}${ext} ${compress_file} 2>&1 1>/dev/null)
+            ;;
+        *)
+            archive_err=$(${command} ${compress_file}${ext} --directory=${path} ${file} 2>&1 1>/dev/null)            
+            ;;
+        esac
+
+        if [ $? -ne 0 ] ; then
+            color_echo red "${command} failed with error: ${archive_err}" && continue
         fi
 
         #Test extract by filename
+        echo testing extract ${compress_file}${ext} ${extract_dir} 
         assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null
-        assert grep "${compress_msg}" ${extracted_file} &> /dev/null
+        
+        echo testing grep
+        assert grep "${compress_msg}" ${extract_dir}/${file}
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
         #Test extract by stdin
-        assert extract < "cat ${compress_file}${ext}" | ${extracted_file} 2>&1 1>/dev/null
-        assert grep "${compress_msg}" ${extracted_file} &> /dev/null
-        ${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
+        #assert extract < cat ${compress_file}${ext} | ${extracted_file} 2>&1 1>/dev/null
+        #assert grep "${compress_msg}" ${extracted_file} &> /dev/null
+        #${priv_esc_cmd} rm -rf "${extract_dir}/tmp"
 
-        color_echo green "${ext} successfully extracted by stdin"
+        color_echo green "${ext} successfully tested with extract"
     done
 
     return 0
