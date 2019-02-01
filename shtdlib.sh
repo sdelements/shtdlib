@@ -344,7 +344,7 @@ function import {
         hasher='shasum'
     elif whichs md5sum; then
         hasher='md5sum'
-    elif whichs ckhsum; then
+    elif whichs cksum; then
         hasher='cksum'
     else
         debug 1 "Unable to find a valid hashing command, blindly importing/sourcing!"
