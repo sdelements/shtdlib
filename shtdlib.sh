@@ -2482,14 +2482,13 @@ function test_add_on_mod {
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        ps -Afl
-        set +o errexit
-        wait "${signaler_pid}" &> /dev/null
+        shopt_decorator_option_name='errexit'
+        shopt_decorator_option_value='false'
+        shopt_decorator wait "${signaler_pid}" &> /dev/null
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
-            ps -Afl
             exit_on_fail
         fi
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
