@@ -985,21 +985,21 @@ function extract {
         fi
         if [ -f "${1}" ] && [ -d "${2}" ]; then
             case "${1}" in
-                *.tar.bz2)   ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"   ${tar_verb_flag};;
-                *.tar.gz)    ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"   ${tar_verb_flag};;
-                *.bz2)       ${priv_esc_cmd} bunzip2 -dc   "${1}" > "${2}"   ;;
-                *.rar)       ${priv_esc_cmd} unrar x       "${1}" "${2}"     ;;
-                *.gz)        ${priv_esc_cmd} gunzip -c     "${1}" > "${2}"   ;;
-                *.tar)       ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag};;
-                *.pyball)    ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag};;
-                *.tbz2)      ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"   ${tar_verb_flag};;
-                *.tgz)       ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"   ${tar_verb_flag};;
+                *.tar.bz2)   ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"    ${tar_verb_flag} ;;
+                *.tar.gz)    ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"    ${tar_verb_flag} ;;
+                *.bz2)       ${priv_esc_cmd} bunzip2 -dc   "${1}" > "${2}/"$(basename ${1%.bz2});;
+                *.rar)       ${priv_esc_cmd} unrar x       "${1}" "${2}"                        ;;
+                *.gz)        ${priv_esc_cmd} gunzip -c     "${1}" > "${2}/"$(basename ${1%.gz}) ;;
+                *.tar)       ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag}  ;;
+                *.pyball)    ${priv_esc_cmd} tar xvf       "${1}" -C "${2}"   ${tar_verb_flag}  ;;
+                *.tbz2)      ${priv_esc_cmd} tar xvjf      "${1}" -C "${2}"   ${tar_verb_flag}  ;;
+                *.tgz)       ${priv_esc_cmd} tar xvzf      "${1}" -C "${2}"   ${tar_verb_flag}  ;;
                 *.zip)       ${priv_esc_cmd} unzip         "${1}" -d "${2}"  ;;
-                *.Z)         ${priv_esc_cmd} uncompress -c "${1}" > "${2}"   ;;
+                *.Z)         ${priv_esc_cmd} uncompress -c "${1}" > "${2}"$(basename ${1%.Z})   ;;
                 *.7z)        ${priv_esc_cmd} 7za x -y      "${1}" -o"${2}" ;;
                 *.tar.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt "${1}" | tar xv -C "${2}" ${tar_verb_flag};;
                 *.tgz.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt "${1}" | tar xvz -C "${2}" ${tar_verb_flag};;
-                *.tar.gz.gpg)   ${priv_esc_cmd}gpg -q -o - --decrypt "${1}" | tar xvz -C "${2}" ${tar_verb_flag};;
+                *.tar.gz.gpg)   ${priv_esc_cmd} gpg -q -o - --decrypt "${1}" | tar xvz -C "${2}" ${tar_verb_flag};;
                 *)           color_echo red "${1} is not a known compression format" ;;
             esac
             extract_trailing_arguments=("${@:3}:-")
