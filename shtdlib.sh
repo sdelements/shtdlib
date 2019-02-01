@@ -2344,10 +2344,7 @@ function test_extract {
         fi
 
         #Test extract by filename
-        echo testing extract ${compress_file}${ext} ${extract_dir} 
         assert extract ${compress_file}${ext} ${extract_dir} 2>&1 1>/dev/null
-        
-        echo testing grep
         assert grep "${compress_msg}" ${extract_dir}/${file}
         ${priv_esc_cmd}  rm -rf "${extract_dir}/tmp"
 
