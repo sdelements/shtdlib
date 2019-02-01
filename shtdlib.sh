@@ -2482,13 +2482,14 @@ function test_add_on_mod {
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        shopt_decorator_option_name='errexit'
-        shopt_decorator_option_value='false'
-        shopt_decorator wait "${signaler_pid}" &> /dev/null
+        ps -Afl
+        set +o errexit
+        wait "${signaler_pid}" &> /dev/null
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
             debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
+            ps -Afl
             exit_on_fail
         fi
         color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
@@ -2689,10 +2690,23 @@ function test_shtdlib {
 
     # Test finalizing paths
     shtdlib_test_variable='/home/test'
-    finalize_path shtdlib_test_variable
-    finalize_path '~'
-    finalize_path './'
-    finalize_path '$HOME/test'
+    finalize_path shtdlib_test_variable > /dev/null
+    finalize_path '~' > /dev/null
+    finalize_path './' > /dev/null
+    finalize_path '$HOME/test' > /dev/null
+
+    # Test stripping path and exptension from a path
+    assert [ "$(basename_s /tmp/example.file)" == 'example' ] && color_echo green 'Tested basename_s correctly stripped path and extension from a path'
+
+    # Test counting arguments
+    assert [ "$(count_arguments 1 2 3 4)" == 4 ] && color_echo green 'Tested count_arguments with 4 args'
+
+    # Test platform neutral readlink -m/_m implementation
+    tmp_file_path="$(mktemp)"
+    tmp_symlink_dir="$(mktemp -d)"
+    tmp_file_name="$(basename "${tmp_file_path}")"
+    ln -s "${tmp_file_path}" "${tmp_symlink_dir}/${tmp_file_name}"
+    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ] && color_echo green "Sucessfully determined symlink target with readlink_m"
 
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
