@@ -518,9 +518,11 @@ function exit_on_fail {
     debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
     debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
     debug 0  "FUNCNAME: ${FUNCNAME[*]}"
-    # Exit if we are running as a script
+    # Exit if we are running as a script, else
     if [ -f "${script_full_path}" ]; then
         exit 1
+    else
+        return 1
     fi
 }
 
@@ -1682,8 +1684,36 @@ function strip_space {
     echo -n "${@}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-# Usage
-# This function is used to safely edit files for config parameters, etc
+# Load ini file parameter
+# Requires at least two arguments but optionally accepts a third, ini_section
+# If ini_section is specified and multiple sections match an error will be
+# raised. Multiple matches will otherwise be returned
+# To strip leading/trailing whitespace simple pipe to sed -e 's/^[[:space:]]*//g'
+function load_ini_file_parameter {
+    local filename="${1}"
+    local name="${2}"
+    local ini_section="${3:-}"
+    debug 10 "Loading INI file parameter: ${name} from file: ${filename}, optional section ${ini_section}"
+
+    if [ -n "${ini_section}" ]; then
+        #shellcheck disable=SC2086
+        ini_section_match="$(grep -c "\[${ini_section}\]" "${filename}")"
+        if [ "${ini_section_match}" -lt 1 ]; then
+            color_echo red "Unable to find INI section matching ${ini_section}"
+            return 1
+        elif [ "${ini_section_match}" -eq 1 ]; then
+            debug 9 "Found INI section ${ini_section}"
+            sed -n "/\[${ini_section}\]/,/\[/p" "${filename}" | grep -E "^${name}" | awk -F= '{print $2}'
+        else
+            color_echo red "Multiple sections match the INI section specified: ${ini_section}"
+            exit 1
+        fi
+    else
+        grep -E "^${name}" "${filename}" | awk -F= '{print $2}'
+    fi
+}
+
+# This function is used to safely edit ini style config files parameters.
 # This function will return 0 on success or 1 if it fails to change the value
 #
 # OPTIONS:
@@ -1696,17 +1726,22 @@ function strip_space {
 #   -o      Opportunistic, don't fail if pattern is not found, takes an optional argument
 #           which is the number of matches expected/required for the change to be performed
 #   -c      Create, if file does not exist we create it, assumes append and opportunistic
-function safe_find_replace {
-local OPTIND OPTARG opt filename pattern new_value force opportunistic create append ini_section req_matches n p v a o c
-    filename=""
-    pattern=""
-    new_value=""
-    force=false
-    opportunistic=false
-    create=false
-    append=false
-    ini_section=""
-    req_matches=1
+function edit_ini_file_parameter {
+    local n p v a o c
+    local OPTIND
+    local OPTARG
+    local opt
+    local force
+    local opportunistic
+    local filename
+    local pattern
+    local new_value
+    local ini_section
+    local force=false
+    local opportunistic=false
+    local create=false
+    local append=false
+    local req_matches=1
 
     # Handle arguments
     while getopts "n:p:v:aoc" opt; do
@@ -1749,8 +1784,8 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
     unset OPTSTRING OPTIND
 
     # Make sure all required parameters are provided
-    if [ "${filename}" == "" ] || [ "${pattern}" == "" ] && ! ${append} || [ "${new_value}" == "" ]; then
-        color_echo red "safe_find_replace requires filename, pattern and value to be provided"
+    if [ -z "${filename:-}" ] || [ -z "${pattern:-}" ] && ! ${append} || [ -z "${new_value:-}" ]; then
+        color_echo red "${FUNCNAME[0]} requires filename, pattern and value to be provided"
         color_echo magenta "Provided filename: ${filename}"
         color_echo magenta "Provided pattern: ${pattern}"
         color_echo magenta "Provided value: ${new_value}"
@@ -2114,10 +2149,9 @@ function trim {
 # Safely loads config file
 # First parameter is filename, all consequent parameters are assumed to be
 # valid configuration parameters
-function load_config()
-{
+function load_config {
     config_file="${1}"
-    # Verify config file permissions are correct and warn if they are not
+    # Verify config file permissions are correct and warn if they aren't
     # Dual stat commands to work with both linux and bsd
     shift
     while read -r line; do
