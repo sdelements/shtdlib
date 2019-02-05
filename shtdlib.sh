@@ -152,6 +152,18 @@ function in_array {
     return 1
 }
 
+# Return octal permissions for a file system object
+# Only return the last three octets
+function get_octal_perm {
+    case "${os_type:-}" in
+        'Darwin')
+            stat -f '%p' "${*}" | cut -c 4-6
+        ;;
+        'Linux')
+            stat -c '%a' "${*}"
+        ;;
+    esac
+}
 
 # Returns the number of arguments passed to it
 function count_arguments {
