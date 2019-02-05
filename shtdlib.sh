@@ -1685,9 +1685,10 @@ function strip_space {
 }
 
 # Load ini file parameter
-# Requires at least two arguments but optionally accepts a third, ini_section
-# If ini_section is specified and multiple sections match an error will be
-# raised. Multiple matches will otherwise be returned
+# Requires at least two arguments and optionally accepts a third, ini_section
+# If ini_section is specified and multiple sections match, an error will be
+# raised. If no ini_section is specified and multiple parameter names match
+# they will all be returned.
 # To strip leading/trailing whitespace simple pipe to sed -e 's/^[[:space:]]*//g'
 function load_ini_file_parameter {
     local filename="${1}"
@@ -1703,7 +1704,7 @@ function load_ini_file_parameter {
             return 1
         elif [ "${ini_section_match}" -eq 1 ]; then
             debug 9 "Found INI section ${ini_section}"
-            sed -n "/\[${ini_section}\]/,/\[/p" "${filename}" | grep -E "^${name}" | awk -F= '{print $2}'
+            sed -n "/\[${ini_section}\]/,/\[/p" "${filename}" | grep --max-count=1 -E "^${name}" | awk -F= '{print $2}'
         else
             color_echo red "Multiple sections match the INI section specified: ${ini_section}"
             exit 1
