@@ -530,7 +530,7 @@ function exit_on_fail {
     debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
     debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
     debug 0  "FUNCNAME: ${FUNCNAME[*]}"
-    # Exit if we are running as a script, else
+    # Exit if we are running as a script, else return
     if [ -f "${script_full_path}" ]; then
         exit 1
     else
