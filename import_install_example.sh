@@ -42,7 +42,6 @@ function import_lib {
         local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
-                echo "Importing ${pref_lib}"
                 # shellcheck disable=SC1091,SC1090,SC2015
                 type -t import | grep -q function && import "${pref_lib}" || source "${pref_lib}"
                 return 0
