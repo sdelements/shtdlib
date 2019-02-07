@@ -334,6 +334,9 @@ function test_decorator {
 # Imports/Sources an external script if it's not already been imported/sourced
 # or is being imported/sourced as determined by BASH_SOURCE
 # Only accepts one argument, the file to source
+# For opertunistic usage use the following pattern:
+# file_to_import='my_file_path'
+# type -t import | grep -q function && import "${file_to_import}" || source "${file_to_import}"
 declare -a sourced_imported_files
 sourced_imported_files=()
 function import {

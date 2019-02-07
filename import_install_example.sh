@@ -22,8 +22,8 @@ function install_lib {
     download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"
     mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || return 1
     chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
-    # shellcheck disable=SC1091,SC1090
-    source "${lib_path}"
+    # shellcheck disable=SC1091,SC1090,SC2015
+    type -t import | grep -q function && import "${lib_path}" || source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
 }
 
@@ -43,16 +43,16 @@ function import_lib {
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
                 echo "Importing ${pref_lib}"
-                # shellcheck disable=SC1091,SC1090
-                source "${pref_lib}"
+                # shellcheck disable=SC1091,SC1090,SC2015
+                type -t import | grep -q function && import "${pref_lib}" || source "${pref_lib}"
                 return 0
             fi
         done
         full_path="$(dirname "${full_path}")"
         if [ "${full_path}" == '/' ] ; then
             # If we haven't found the library try the PATH or install if needed
-            # shellcheck disable=SC1091,SC1090
-            source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
+            # shellcheck disable=SC1091,SC1090,SC2015
+            type -t import | grep -q function && import "${lib_name}" 2> /dev/null || source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
             # If nothing works then we fail
             echo "Unable to import ${lib_name}"
             return 1
