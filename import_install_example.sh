@@ -50,8 +50,9 @@ function import_lib {
         full_path="$(dirname "${full_path}")"
         if [ "${full_path}" == '/' ] ; then
             # If we haven't found the library try the PATH or install if needed
+            type -t import | grep -q function && import "${lib_name}" 2> /dev/null && return 0
             # shellcheck disable=SC1091,SC1090,SC2015
-            type -t import | grep -q function && import "${lib_name}" 2> /dev/null || source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
+            source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
             # If nothing works then we fail
             echo "Unable to import ${lib_name}"
             return 1
