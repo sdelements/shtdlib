@@ -51,7 +51,7 @@ function import_lib {
         local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
-                import_or_cource "${pref_lib}" && return 0
+                import_or_source "${pref_lib}" && return 0
             fi
         done
         full_path="$(dirname "${full_path}")"
