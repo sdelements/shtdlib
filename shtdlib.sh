@@ -333,7 +333,8 @@ function test_decorator {
 
 # Imports/Sources an external script if it's not already been imported/sourced
 # or is being imported/sourced as determined by BASH_SOURCE
-# Only accepts one argument, the file to source
+# Only accepts one argument, the file to source.
+# Returns 0 if file is successfully imported or has already been imported.
 # For opertunistic usage use the following pattern:
 # file_to_import='my_file_path'
 # type -t import | grep -q '^function$' && import "${file_to_import}" || source "${file_to_import}"
@@ -368,7 +369,7 @@ function import {
     # Check if file has already been sourced/imported
     if in_array "${target_file_hash}" "${sourced_imported_files[@]}" ; then
         debug 5 "Source file ${1} has already been imported/sourced, skipping"
-        return 1
+        return 0
     fi
 
     # Finally import/source the file if needed
