@@ -24,6 +24,21 @@ default_library_name='shtdlib.sh'
 default_base_download_url='https://raw.githubusercontent.com/sdelements/shtdlib/master'
 default_install_path='/usr/local/bin'
 
+# Temporary debug function
+type -t import | grep -q '^function$' || function debug { echo "${@:2}" ; }
+
+# Import or source
+function import_or_source {
+    if type -t import | grep -q '^function$' ; then
+        debug 10 "Importing ${0}"
+        import "${1}"
+    else
+        debug 10 "Sourcing ${0}"
+        # shellcheck disable=1090
+        source "${1}"
+    fi
+}
+
 # Library download function, optionally accepts a full path/name and URL
 function download_lib {
     local tmp_path="${1:-$(mktemp)}"
@@ -42,8 +57,7 @@ function install_lib {
     download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"
     mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || return 1
     chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
-    # shellcheck disable=SC1091,SC1090,SC2015
-    type -t import | grep -q function && import "${lib_path}" || source "${lib_path}"
+    import_or_source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
 }
 
@@ -62,16 +76,16 @@ function import_lib {
         local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
-                # shellcheck disable=SC1091,SC1090,SC2015
-                type -t import | grep -q function && import "${pref_lib}" || source "${pref_lib}"
-                return 0
+                debug 10 "Found ${pref_lib}, attempting to import/source"
+                import_or_source "${pref_lib}" && return 0
+                echo "Unable to import/source ${pref_lib}!"
             fi
         done
         full_path="$(dirname "${full_path}")"
         if [ "${full_path}" == '/' ] ; then
             # If we haven't found the library try the PATH or install if needed
-            # shellcheck disable=SC1091,SC1090,SC2015
-            type -t import | grep -q function && import "${lib_name}" 2> /dev/null || source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
+            debug 10 "Attempting to import/source ${lib_name}"
+            import_or_source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
             # If nothing works then we fail
             echo "Unable to import ${lib_name}"
             return 1
