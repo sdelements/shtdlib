@@ -336,12 +336,12 @@ function test_decorator {
 # Only accepts one argument, the file to source
 # For opertunistic usage use the following pattern:
 # file_to_import='my_file_path'
-# type -t import | grep -q function && import "${file_to_import}" || source "${file_to_import}"
+# type -t import | grep -q '^function$' && import "${file_to_import}" || source "${file_to_import}"
 declare -a sourced_imported_files
 sourced_imported_files=()
 function import {
-    assert test -n "${0}"
-    assert test -e "${0}"
+    assert test -n "${1}"
+    assert test -e "${1}"
     local hasher
     if whichs shasum; then
         hasher='shasum'

@@ -6,7 +6,7 @@ default_install_path='/usr/local/bin'
 
 # Import or source
 function import_or_source {
-    if type -t import | grep -q function ; then
+    if type -t import | grep -q '^function$' ; then
         import "${0}"
     else
         # shellcheck disable=1090
