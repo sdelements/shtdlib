@@ -36,7 +36,7 @@ function whichs {
 # Set strict mode only for non-interactive (see bash tab completion bug):
 # https://github.com/scop/bash-completion/issues/44
 # https://bugzilla.redhat.com/show_bug.cgi?id=1055784
-if ! ${interactive} ; then
+if ${strict_mode:-true} && ! ${interactive} ; then
     set -euo pipefail
 fi
 
