@@ -28,7 +28,9 @@ interactive="${interactive:-true}"
 # Create which -s alias (whichs), same as POSIX: -s
 # No output, just return 0 if all of the executables are found, or 1 if some were not found.
 function whichs {
-    command -v "${*}" >> /dev/null
+    # Bash 3.1 does not flush stdout so we use tee to make sure it gets done
+    command -v "${*}" &> /dev/null | tee /dev/null &> /dev/null
+    return "${PIPESTATUS}"
 }
 
 # Set strict mode only for non-interactive (see bash tab completion bug):
@@ -69,6 +71,7 @@ yum help help > /dev/null 2>&1 && os_family='RedHat'
 echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
 if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
 if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
+if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
@@ -96,6 +99,7 @@ if [ "${os_family}" == 'RedHat' ]; then
     elif grep -qEi 'red ?hat' /etc/redhat-release; then
         os_name='redhat';
     fi
+    patch_version=0
 elif [ "${os_family}" == 'Debian' ]; then
     if [ -e '/etc/os-release' ] ; then
         # VERSION_CODENAME is the built-in optional identifier
@@ -112,6 +116,16 @@ elif [ "${os_family}" == 'Debian' ]; then
         minor_version="$(awk -F. '{print $2}' /etc/debian_version)"
         os_name='debian'
     fi
+    patch_version=0
+elif [ "${os_family}" == 'Alpine' ]; then
+    # A safe way to read the version regardless of bash version and buggy
+    # implementations
+    # shellcheck disable=2207
+    command -v mapfile &> /dev/null | tee /dev/null &> /dev/null && mapfile -d. -t full_version < /etc/alpine-release &> /dev/null || full_version=($(awk -F. '{printf("%s %s %s\n", $1, $2, $3)}' /etc/alpine-release))
+    major_version="${full_version[0]}"
+    minor_version="${full_version[1]}"
+    patch_version="${full_version[2]}"
+    os_name='alpine'
 fi
 
 # Store local IP addresses (not localhost)
@@ -138,6 +152,18 @@ function in_array {
     return 1
 }
 
+# Return octal permissions for a file system object
+# Only return the last three octets
+function get_octal_perm {
+    case "${os_type:-}" in
+        'Darwin')
+            stat -f '%p' "${*}" | cut -c 4-6
+        ;;
+        'Linux')
+            stat -c '%a' "${*}"
+        ;;
+    esac
+}
 
 # Returns the number of arguments passed to it
 function count_arguments {
@@ -256,7 +282,7 @@ function umask_decorator {
 #     echo "Bash option pipefail is set to false for this code"
 # }
 function shopt_decorator {
-    debug 10 "${FUNCNAME} used with ${*}"
+    debug 10 "${FUNCNAME} called with ${*}"
     if [ -n "${shopt_decorator_option_value:-}" ]  && [ -n "$(shopt -o "${shopt_decorator_option_name:-}")" ] ; then
         if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] ; then
             if shopt -qo "${shopt_decorator_option_name}" ; then
@@ -294,6 +320,7 @@ function shopt_decorator {
             fi
         fi
         # Calling function is the decorator, skip
+        debug 10 "Already decorated, returning 121"
         return 121
     else
         color_echo red "Called ${FUNCNAME[*]} without setting required variables with valid option name/value. The variables shopt_decorator_option_name and shopt_decorator_option_value need to be set to a valid shopt option and a command/function that evaluates true/false, 'true'/'false' are valid commands"
@@ -550,9 +577,11 @@ function exit_on_fail {
     debug 10 "BASH_SOURCE: ${BASH_SOURCE[*]}"
     debug 10 "BASH_LINENO: ${BASH_LINENO[*]}"
     debug 0  "FUNCNAME: ${FUNCNAME[*]}"
-    # Exit if we are running as a script
+    # Exit if we are running as a script, else return
     if [ -f "${script_full_path}" ]; then
         exit 1
+    else
+        return 1
     fi
 }
 
@@ -686,7 +715,7 @@ function signal_processor {
 # Signals a process by either exact name or pid
 # Accepts name/pid as first parameter and optionally signal as second parameter
 function signal_process {
-debug 8 "Signaling ${1} with ${2:-SIGTERM}"
+debug 8 "Signaling PID: ${1} with signal: ${2:-SIGTERM}"
 if [[ "${1}" =~ ^[0-9]+$ ]] ; then
     if [ "${2}" != '' ] ; then
         kill -s "${2}" "${1}"
@@ -694,6 +723,7 @@ if [[ "${1}" =~ ^[0-9]+$ ]] ; then
         kill "${1}"
     fi
 else
+    assert whichs pkill
     if [ "${2}" != '' ] ; then
         pkill --exact --signal "${2}" "${1}"
     else
@@ -741,8 +771,7 @@ function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
     # shellcheck disable=2015
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
-
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator" 
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
                                    --event modify
@@ -771,7 +800,10 @@ function add_on_mod {
     on_mod_max_frequency="${max_frequency:-1}"
     on_mod_max_queue_depth="${on_mod_max_queue_depth:-1}"
     for fs_object in "${arguments[@]:1}"; do
-        assert test -e "${fs_object}"
+        if ! [ -e "${fs_object}" ] ; then
+            color_echo red "Unable to find filesystem object '${fs_object}' when running ${FUNCNAME[0]}"
+            return 1
+        fi
         ${file_monitor_command} "${fs_object}" \
             | while read -r mod_fs_object; do
             debug 10 "Handling event using event loop with pid: ${$}"
@@ -791,7 +823,11 @@ function add_on_mod {
                 if [ "${on_mod_max_frequency}" -gt 0 ] && [ "${#sub_processes[@]}" -gt 0 ] ; then
                     if "${on_mod_refresh}" &&  [ "${#sub_processes[@]}" -le "${on_mod_max_queue_depth}" ] ; then
                         sibling_pid="${sub_processes[$(( ${#sub_processes[@]} - 1 ))]}"
-                        sibling_run_time="$(ps h -o etimes -p "${sibling_pid}")"
+                        # Implement a special case for busybox support
+                        # shellcheck disable=2009,2015,2230
+                        sibling_run_time="$(readlink -f "$(which ps)" | grep -q busybox && \
+                           ps -Ao pid,time | grep '^[\t ]*${sibling_pid}[\t ]' | awk '{print $2}' | awk -F: '{for(i=NF;i>=1;i--) printf "%s ", $i;print ""}' | awk '{print $1 + $2 * 60 + $3 * 3600 + $4 * 86400}' || \
+                           ps h -o etimes -p "${sibling_pid}")"
                         delta=$(( on_mod_max_frequency - sibling_run_time))
                         if [ "${delta}" -gt 0 ] ; then
                             sleep "${delta}"
@@ -806,7 +842,7 @@ function add_on_mod {
                         debug 10 "Discarding redundant/unwanted event since refresh is disabled or max queue depth has been reached"
                     fi
                 else
-                    debug 7 "Running: ${arguments} with parameter: ${mod_fs_object} in subshell with pid ${$}"
+                    debug 7 "Running command: '${arguments} ${mod_fs_object}' in subshell with PID: ${$}"
                     ${arguments} "${mod_fs_object}"
                 fi
             ) &
@@ -1086,7 +1122,7 @@ function extract_exec_archive {
         tail -n +"${bash_num_lines}" "${script_full_path}" | extract - "${tmp_archive_dir}" || exit_on_fail
     else
         color_echo red "Archive extraction cancelled by user!"
-        exit -1
+        exit 255
     fi
 }
 
@@ -1140,7 +1176,7 @@ function required_argument {
     if [ -z "${!1}" ]; then
         ${print_usage_function}
         color_echo red "${2}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -1547,6 +1583,54 @@ function install_gem {
     return 1
 }
 
+# A platform independent way to install a package, accepts any number of
+# arguments all of which are assumed to be name variations of a package that
+# should be tried, will only error if none of the arguments represent a valid
+# package name.
+function install_package {
+    case "${os_family}" in
+        'Debian')
+            ${priv_esc_cmd} apt-get update
+            exit_status=127
+            for package_name in "${@}"; do
+                ${priv_esc_cmd} sudo apt-get --assume-yes --quiet install "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        'RedHat')
+            ${priv_esc_cmd} yum update
+            exit_status=127
+            for package_name in "${@}"; do
+                ${priv_esc_cmd} yum -assumeyes --quiet install  "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        'MacOSX')
+            assert whichs brew
+            brew update
+            exit_status=127
+            for package_name in "${@}"; do
+                brew install "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+        'Alpine')
+            ${priv_esc_cmd} apk update
+            exit_status=127
+            for package_name in "${@}"; do
+                ${priv_esc_cmd} apk add "${package_name}" &&  exit_status="${?}" && break
+            done
+            return "${exit_status}"
+        ;;
+
+        *)
+            color_echo red "Unsupported platform '${os_family}' for install_package function" >&2
+            return 1
+        ;;
+    esac
+}
+
+
 function validate_hostfile {
     assigned_ip_addresses="$(ip -4 addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*')"
     ip_address_in_hostfile="$(getent hosts | grep -e "\\b$(hostname)\\b" | awk '{print $1}')"
@@ -1659,8 +1743,37 @@ function strip_space {
     echo -n "${@}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
 }
 
-# Usage
-# This function is used to safely edit files for config parameters, etc
+# Load ini file parameter
+# Requires at least two arguments and optionally accepts a third, ini_section
+# If ini_section is specified and multiple sections match, an error will be
+# raised. If no ini_section is specified and multiple parameter names match
+# they will all be returned.
+# To strip leading/trailing whitespace simple pipe to sed -e 's/^[[:space:]]*//g'
+function load_ini_file_parameter {
+    local filename="${1}"
+    local name="${2}"
+    local ini_section="${3:-}"
+    debug 10 "Loading INI file parameter: ${name} from file: ${filename}, optional section ${ini_section}"
+
+    if [ -n "${ini_section}" ]; then
+        #shellcheck disable=SC2086
+        ini_section_match="$(grep -c "\[${ini_section}\]" "${filename}")"
+        if [ "${ini_section_match}" -lt 1 ]; then
+            color_echo red "Unable to find INI section matching ${ini_section}"
+            return 1
+        elif [ "${ini_section_match}" -eq 1 ]; then
+            debug 9 "Found INI section ${ini_section}"
+            sed -n "/\[${ini_section}\]/,/\[/p" "${filename}" | grep --max-count=1 -E "^${name}" | awk -F= '{print $2}'
+        else
+            color_echo red "Multiple sections match the INI section specified: ${ini_section}"
+            exit 1
+        fi
+    else
+        grep -E "^${name}" "${filename}" | awk -F= '{print $2}'
+    fi
+}
+
+# This function is used to safely edit ini style config files parameters.
 # This function will return 0 on success or 1 if it fails to change the value
 #
 # OPTIONS:
@@ -1673,17 +1786,22 @@ function strip_space {
 #   -o      Opportunistic, don't fail if pattern is not found, takes an optional argument
 #           which is the number of matches expected/required for the change to be performed
 #   -c      Create, if file does not exist we create it, assumes append and opportunistic
-function safe_find_replace {
-local OPTIND OPTARG opt filename pattern new_value force opportunistic create append ini_section req_matches n p v a o c
-    filename=""
-    pattern=""
-    new_value=""
-    force=false
-    opportunistic=false
-    create=false
-    append=false
-    ini_section=""
-    req_matches=1
+function edit_ini_file_parameter {
+    local n p v a o c
+    local OPTIND
+    local OPTARG
+    local opt
+    local force
+    local opportunistic
+    local filename
+    local pattern
+    local new_value
+    local ini_section
+    local force=false
+    local opportunistic=false
+    local create=false
+    local append=false
+    local req_matches=1
 
     # Handle arguments
     while getopts "n:p:v:aoc" opt; do
@@ -1726,8 +1844,8 @@ local OPTIND OPTARG opt filename pattern new_value force opportunistic create ap
     unset OPTSTRING OPTIND
 
     # Make sure all required parameters are provided
-    if [ "${filename}" == "" ] || [ "${pattern}" == "" ] && ! ${append} || [ "${new_value}" == "" ]; then
-        color_echo red "safe_find_replace requires filename, pattern and value to be provided"
+    if [ -z "${filename:-}" ] || [ -z "${pattern:-}" ] && ! ${append} || [ -z "${new_value:-}" ]; then
+        color_echo red "${FUNCNAME[0]} requires filename, pattern and value to be provided"
         color_echo magenta "Provided filename: ${filename}"
         color_echo magenta "Provided pattern: ${pattern}"
         color_echo magenta "Provided value: ${new_value}"
@@ -2091,10 +2209,9 @@ function trim {
 # Safely loads config file
 # First parameter is filename, all consequent parameters are assumed to be
 # valid configuration parameters
-function load_config()
-{
+function load_config {
     config_file="${1}"
-    # Verify config file permissions are correct and warn if they are not
+    # Verify config file permissions are correct and warn if they aren't
     # Dual stat commands to work with both linux and bsd
     shift
     while read -r line; do
@@ -2189,7 +2306,7 @@ function check_set_persist_random_variable {
 function manage_service {
     # Ensure all arguments are passed in
     local items=( ${@} )
-    assert [ ${#items[@]} -eq 2 ]
+    assert [ "${#items[@]}" -eq 2 ]
 
     # Set args into meaningful names
     local service="${1}"
@@ -2226,7 +2343,7 @@ function manage_service {
         fi
     done
 
-    debug 10 "Exhausted init commands, try again with debug/verbosity for more information."
+    debug 10 'Exhausted init commands, try again with debug/verbosity for more information.'
     return 1
 }
 
@@ -2293,6 +2410,65 @@ function test_shopt_decorator {
     assert shopt -qo pipefail && color_echo green "Successfully decorated  ${FUNCNAME[0]} with pipefail"
 }
 
+# Test signaling
+function test_signal_process {
+    signal_processor SIGUSR2 'exit 42' > /dev/null
+    local sub_pid_0="${!}"
+    signal_processor SIGUSR1 "sleep 2 && kill -s SIGUSR2 ${sub_pid_0} && exit 42" > /dev/null
+    local sub_pid_1="${!}"
+    debug 10 "Spawned sub processes using signal processor with pids: ${sub_pid_0} and ${sub_pid_1}"
+    debug 10 "Active sub processes are: $(pgrep -P ${$} | tr '\n' ' ')"
+    signal_process "${sub_pid_1}" SIGUSR1 > /dev/null
+    debug 10 "Waiting for sub processes to exit"
+    bash -c "sleep 10 && kill ${sub_pid_0} &> /dev/null" &
+    bash -c "sleep 10 && kill ${sub_pid_1} &> /dev/null" &
+    while pgrep -P ${$} > /dev/null ; do
+        debug 10 "Waiting for ${sub_pid_0}"
+        # Make sure the sub process exits with 42
+        wait ${sub_pid_0} &> /dev/null || assert [ "${?}" == '42' ]
+        color_echo green "Sub process was signaled, responded and properly exited"
+        return 0
+    done
+    color_echo red "Signaling and sub process test failed"
+    return 1
+}
+
+# Test filesystem monitoring/event triggers
+function test_add_on_mod {
+    if ! ( whichs inotifywait || whichs fswatch ) ; then
+        debug 4 "Unable to locate inotify or fswatch, trying to install them"
+        install_package inotify-tools fswatch
+    fi
+
+    signal_processor SIGUSR1 'exit 42' > /dev/null
+    local signaler_pid="${!}"
+    local tmp_file_path
+    tmp_file_path="$(mktemp)"
+    add_on_exit "rm -f ${tmp_file_path}"
+    debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
+    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    mod_watcher_pid="${!}"
+    bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
+    bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
+    while pgrep -P ${$} > /dev/null ; do
+        debug 10 "Waiting for PID ${signaler_pid} to exit"
+        shopt_decorator_option_name='errexit'
+        shopt_decorator_option_value='false'
+        shopt_decorator wait "${signaler_pid}" &> /dev/null
+        return_status="${?}"
+        # Make sure the sub process exits with 42
+        if [ "${return_status}" != '42' ] ; then
+            debug 1 "Got return status ${return_status} when waiting for ${signaler_pid} to exit"
+            exit_on_fail
+        fi
+        color_echo green "Sub process was signaled by file system monitoring thread, responded and properly exited"
+        debug 10 "Signaling mod_watcher ${mod_watcher_pid} to exit"
+        kill "${mod_watcher_pid}"
+        return 0
+    done
+    color_echo red "Filesystem modification monitoring and trigger testing failed"
+    return 1
+}
 
 # Test function for create_secure_tmp function
 function test_create_secure_tmp {
@@ -2304,12 +2480,12 @@ function test_create_secure_tmp {
     create_secure_tmp "tmp_dir" "dir"
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > "${tmp_file}"
-    assert grep test ${tmp_file} > /dev/null
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
-    assert [ -e "${tmp_dir}" ] 
-    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
+    assert [ -e "${tmp_dir}" ]
+    assert [ "$(stat -c %a "${tmp_dir}")" -eq 700 ]
     touch "${tmp_dir}/test"
     assert [ -e "${tmp_dir}/test" ]
 
@@ -2319,18 +2495,18 @@ function test_create_secure_tmp {
     create_secure_tmp "tmp_dir2" "dir" "/tmp/tmp.new_dir"
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > ${tmp_file}
-    assert grep test ${tmp_file} > /dev/null 
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > ${tmp_file}
-    assert grep test ${tmp_file} > /dev/null
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
     assert [ -e "${tmp_dir}" ]
-    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
-    
+    assert [ "$(stat -c %a "${tmp_dir}")" -eq 700 ]
+
     color_echo green 'Temporary files and directories successfully created and tested'
     return 0
 }
@@ -2340,6 +2516,7 @@ function test_create_secure_tmp {
 # assumed to be container image names (bash versions) to test with.
 # Also supports "local" which will test without using containers.
 function test_shtdlib {
+    export verbosity=11
     # Run this function inside bash containers as/if specified
     if in_array 'local' "${@:-}" ; then
         if [ "${#}" -ne 1 ] ; then
@@ -2352,13 +2529,18 @@ function test_shtdlib {
     fi
 
     color_echo green "Testing shtdlib functions"
+
+    # Show some basic system stats
     color_echo cyan "OS Family is: ${os_family}"
     color_echo cyan "OS Type is: ${os_type}"
+    color_echo cyan "OS Name is: ${os_name}"
+    color_echo cyan "OS version is (major.minor.patch): ${major_version}.${minor_version}.${patch_version}"
     color_echo cyan "Local IPs are:"
     for ip in ${local_ip_addresses} ; do
         color_echo cyan "${ip}"
     done
 
+    # Test color output
     color_echo cyan "Testing echo colors:"
     color_echo black "Black"
     color_echo red "Red"
@@ -2373,30 +2555,54 @@ function test_shtdlib {
     # shellcheck disable=2015
     shopt -uo pipefail && test_shopt_decorator 'Hello World' || exit_on_fail
 
-    assert true
+    # Test whichs command
+    whichs command && color_echo green "whichs found the command 'command'"
+
+    # Test assert command and make some basic assertions
+    assert true && color_echo green "asserted 'true' is true"
     assert whichs ls
     assert [ 0 -eq 0 ]
 
+    # Test array inclusion, argument counting and empty check
     declare -a shtdlib_test_array
     shtdlib_test_array=(a b c d e f g)
     # shellcheck disable=SC1117
     assert in_array 'a' "${shtdlib_test_array[@]}" && color_echo cyan "'a' is in '${shtdlib_test_array[*]}'"
+    assert [ "$(count_array_elements shtdlib_test_array)" == 7 ] && color_echo green "Found 7 elements in test array"
+    declare -a shtdlib_empty_array
+    assert empty_array shtdlib_empty_array
+
+    # Test verbosity and debug logging
     orig_verbosity="${verbosity:-1}"
-    verbosity=1 && color_echo green "Verbosity set to 1 (should see debug up to 1)"
+    verbosity=1 && color_echo green 'Verbosity set to 1 (should see debug up to 1)'
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
-    verbosity=10 && color_echo green "Verbosity set to 10 (should see debug up to 11)"
+    verbosity=10 && color_echo green 'Verbosity set to 10 (should see debug up to 10)'
     for ((i=1; i <= 11 ; i++)) ; do
         debug ${i} "Debug Level ${i}"
     done
     verbosity="${orig_verbosity}"
 
+    # Test finalizing paths
     shtdlib_test_variable='/home/test'
-    finalize_path shtdlib_test_variable
-    finalize_path '~'
-    finalize_path './'
-    finalize_path '$HOME/test'
+    finalize_path shtdlib_test_variable > /dev/null
+    finalize_path '~' > /dev/null
+    finalize_path './' > /dev/null
+    finalize_path '$HOME/test' > /dev/null
+
+    # Test stripping path and exptension from a path
+    assert [ "$(basename_s /tmp/example.file)" == 'example' ] && color_echo green 'Tested basename_s correctly stripped path and extension from a path'
+
+    # Test counting arguments
+    assert [ "$(count_arguments 1 2 3 4)" == 4 ] && color_echo green 'Tested count_arguments with 4 args'
+
+    # Test platform neutral readlink -m/_m implementation
+    tmp_file_path="$(mktemp)"
+    tmp_symlink_dir="$(mktemp -d)"
+    tmp_file_name="$(basename "${tmp_file_path}")"
+    ln -s "${tmp_file_path}" "${tmp_symlink_dir}/${tmp_file_name}"
+    assert [ "$(readlink_m "${tmp_symlink_dir}/${tmp_file_name}")" == "${tmp_file_path}" ] && color_echo green "Sucessfully determined symlink target with readlink_m"
 
     # Test safe loading of config parameters
     tmp_file="$(mktemp)"
@@ -2408,11 +2614,21 @@ function test_shtdlib {
     # shellcheck disable=SC2153
     test "'${TEST_KEY}'" == "'${test_value}'" || exit_on_fail
 
+    # Test version sort
+    sorted_string="$(version_sort '1 0 2.3.2 3.3.3 1.1.1 0.0.1 2m 2.2.2m 4.4a')"
+    assert [ "${sorted_string//[$'\t\r\n ']/ }" == '0 0.0.1 1 1.1.1 2m 2.2.2m 2.3.2 3.3.3 4.4a' ] && color_echo green "Successfully tested version sort"
+
     # Test version comparison
     assert compare_versions '1.1.1 1.2.2test'
     assert [ "$(compare_versions '1.2.2 1.1.1'; echo "${?}")" == '1' ]
     assert  compare_versions '1.0.0 1.1.1 2.2.2'
     assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
+
+    # Test process signaling
+    test_signal_process
+
+    # Test filesystem object activity triggers
+    test_add_on_mod
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
