@@ -1118,7 +1118,7 @@ function extract_exec_archive {
         tail -n +"${bash_num_lines}" "${script_full_path}" | extract - "${tmp_archive_dir}" || exit_on_fail
     else
         color_echo red "Archive extraction cancelled by user!"
-        exit -1
+        exit 255
     fi
 }
 
@@ -1172,7 +1172,7 @@ function required_argument {
     if [ -z "${!1}" ]; then
         ${print_usage_function}
         color_echo red "${2}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -2302,7 +2302,7 @@ function check_set_persist_random_variable {
 function manage_service {
     # Ensure all arguments are passed in
     local items=( ${@} )
-    assert [ ${#items[@]} -eq 2 ]
+    assert [ "${#items[@]}" -eq 2 ]
 
     # Set args into meaningful names
     local service="${1}"
@@ -2339,7 +2339,7 @@ function manage_service {
         fi
     done
 
-    debug 10 "Exhausted init commands, try again with debug/verbosity for more information."
+    debug 10 'Exhausted init commands, try again with debug/verbosity for more information.'
     return 1
 }
 
@@ -2464,6 +2464,7 @@ function test_add_on_mod {
     done
     color_echo red "Filesystem modification monitoring and trigger testing failed"
     return 1
+}
 
 # Test function for create_secure_tmp function
 function test_create_secure_tmp {
@@ -2475,12 +2476,12 @@ function test_create_secure_tmp {
     create_secure_tmp "tmp_dir" "dir"
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > "${tmp_file}"
-    assert grep test ${tmp_file} > /dev/null
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
-    assert [ -e "${tmp_dir}" ] 
-    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
+    assert [ -e "${tmp_dir}" ]
+    assert [ "$(stat -c %a "${tmp_dir}")" -eq 700 ]
     touch "${tmp_dir}/test"
     assert [ -e "${tmp_dir}/test" ]
 
@@ -2490,18 +2491,18 @@ function test_create_secure_tmp {
     create_secure_tmp "tmp_dir2" "dir" "/tmp/tmp.new_dir"
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > ${tmp_file}
-    assert grep test ${tmp_file} > /dev/null 
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
     assert [ -e "${tmp_file}" ]
-    assert [ $(stat -c %a "${tmp_file}") -eq 600 ]
-    echo "test" > ${tmp_file}
-    assert grep test ${tmp_file} > /dev/null
+    assert [ "$(stat -c %a "${tmp_file}")" -eq 600 ]
+    echo 'test' > "${tmp_file}"
+    assert grep test "${tmp_file}" > /dev/null
 
     assert [ -e "${tmp_dir}" ]
-    assert [ $(stat -c %a "${tmp_dir}") -eq 700 ]
-    
+    assert [ "$(stat -c %a "${tmp_dir}")" -eq 700 ]
+
     color_echo green 'Temporary files and directories successfully created and tested'
     return 0
 }
