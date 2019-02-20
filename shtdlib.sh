@@ -388,7 +388,7 @@ function import {
     # Add all files in source history to the list of imported files
     for source_file in "${BASH_SOURCE[@]}"; do
         source_file_hash="$("${hasher}" "${source_file}" | awk '{print $0}')"
-        if ! in_array "${source_file_hash}" "${sourced_imported_files[@]}" ; then
+        if ! in_array "${source_file_hash}" "${sourced_imported_files[@]:-}" ; then
             sourced_imported_files+=( "${source_file_hash}" )
         fi
     done
