@@ -2234,7 +2234,7 @@ function load_missing_config {
     declare -a new_settings
     new_settings=()
     for setting in "${@:2}"; do
-        if [ -z "${!setting}" ] ; then
+        if [ -z "${!setting:-}" ] ; then
             new_settings+=( "${setting}" )
         fi
     done
