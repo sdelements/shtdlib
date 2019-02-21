@@ -2136,7 +2136,7 @@ fi
 # Check for or create a pid file for the program
 # takes program/pidfile name as a first parameter, this is the unique ID
 # Exits with error if a previous matching pidfile is found
-function init_pid() {
+function init_pid {
     pidfile="${pid_prefix}${1}"
     if [ -f "${pidfile}" ]; then
         file_size="$(wc -c < "${pidfile}")"
@@ -2168,13 +2168,13 @@ function init_pid() {
 }
 
 # Send success signal to other process by name
-function signal_success() {
+function signal_success {
     signal "${1}" "SIGCONT" "Success"
 }
 
 # Send failure signal to other process by name if send_failure_signal is true
 send_failure_signal="${send_failure_signal:-true}"
-function signal_failure() {
+function signal_failure {
     if ${send_failure_signal} ; then
         signal "${1}" "SIGUSR2" "Failure"
     fi
@@ -2182,7 +2182,7 @@ function signal_failure() {
 
 # Send a signal to process, read pid from file or search by name
 # Parameters are: filename/processname signal message
-function signal() {
+function signal {
     pidfile="${pid_prefix}${1}"
     # Check if first parameter is pidfile or process name/search string
     if init_pid "${1}" > /dev/null || [ ${?} == 129 ]; then
@@ -2225,6 +2225,21 @@ function load_config {
             fi
         fi
     done < "${config_file}";
+}
+
+# Load settings from config file if they have not been set already
+# First parameter is filename, all consequent parameters are assumed to be
+# configuration parameters
+function load_missing_config {
+    declare -a new_settings
+    new_settings=()
+    for setting in "${@:2}"; do
+        if [ -z "${!setting}" ] ; then
+            new_settings+=( "${setting}" )
+        fi
+    done
+    debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
+    load_config ${1} "${new_settings[*]}"
 }
 
 # Make sure symlink exists and points to the correct target, will remove
