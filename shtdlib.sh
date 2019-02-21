@@ -2239,7 +2239,7 @@ function load_missing_config {
         fi
     done
     debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
-    load_config ${1} "${new_settings[*]}"
+    load_config "${1}" "${new_settings[*]}"
 }
 
 # Make sure symlink exists and points to the correct target, will remove
