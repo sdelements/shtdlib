@@ -29,9 +29,9 @@ import_install_example.sh
 Variables/Options which can be set/exported to change the behaviour of the
 library and various functions during execution.
 
-interactive - true/false - en/dis-ables interactive promps and features requiring a TTY/PTY
-strict_mode - true/false - en/dis-ables hell options to stop and/or exit on errors and undefined variables
-verbosity   -    0-10    - Sets the verbosity for debug logging, default 0
+`interactive` - true/false - en/dis-ables interactive promps and features requiring a TTY/PTY
+`strict_mode` - true/false - en/dis-ables shell options to stop and/or exit on errors and undefined variables
+`verbosity`   -    0-10    - Sets the verbosity for debug logging, default 0
 
 ## Testing
 
