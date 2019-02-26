@@ -30,10 +30,10 @@ type -t import | grep -q '^function$' || function debug { echo "${@:2}" ; }
 # Import or source
 function import_or_source {
     if type -t import | grep -q '^function$' ; then
-        debug 10 "Importing ${0}"
+        debug 10 "Importing ${1}"
         import "${1}"
     else
-        debug 10 "Sourcing ${0}"
+        debug 10 "Sourcing ${1}"
         # shellcheck disable=1090
         source "${1}"
     fi
