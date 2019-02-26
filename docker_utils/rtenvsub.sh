@@ -46,7 +46,7 @@ function download_lib {
     curl -s -l -o "${tmp_path}" "${lib_url}" || wget --no-verbose "${lib_url}" --output-document "${tmp_path}" || return 1
 }
 
-# Library install function, optionallly accepts a URL and a full path/name
+# Library install function, optionally accepts a URL and a full path/name
 # shellcheck disable=SC2120,SC2119
 function install_lib {
     local lib_path="${1:-${default_install_path}/${default_library_name}}"
