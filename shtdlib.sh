@@ -2641,7 +2641,7 @@ function test_shtdlib {
     # test_signal_process
 
     # Test filesystem object activity triggers
-    test_add_on_mod
+    # test_add_on_mod
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
