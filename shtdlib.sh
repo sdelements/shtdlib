@@ -358,12 +358,16 @@ function test_decorator {
 
 # Imports/Sources an external script if it's not already been imported/sourced
 # or is being imported/sourced as determined by BASH_SOURCE
-# Only accepts one argument, the file to source
+# Only accepts one argument, the file to source.
+# Returns 0 if file is successfully imported or has already been imported.
+# For opertunistic usage use the following pattern:
+# file_to_import='my_file_path'
+# type -t import | grep -q '^function$' && import "${file_to_import}" || source "${file_to_import}"
 declare -a sourced_imported_files
 sourced_imported_files=()
 function import {
-    assert test -n "${0}"
-    assert test -e "${0}"
+    assert test -n "${1}"
+    assert test -e "${1}"
     local hasher
     if whichs shasum; then
         hasher='shasum'
@@ -382,7 +386,7 @@ function import {
     # Add all files in source history to the list of imported files
     for source_file in "${BASH_SOURCE[@]}"; do
         source_file_hash="$("${hasher}" "${source_file}" | awk '{print $0}')"
-        if ! in_array "${source_file_hash}" "${sourced_imported_files[@]}" ; then
+        if ! in_array "${source_file_hash}" "${sourced_imported_files[@]:-}" ; then
             sourced_imported_files+=( "${source_file_hash}" )
         fi
     done
@@ -390,7 +394,7 @@ function import {
     # Check if file has already been sourced/imported
     if in_array "${target_file_hash}" "${sourced_imported_files[@]}" ; then
         debug 5 "Source file ${1} has already been imported/sourced, skipping"
-        return 1
+        return 0
     fi
 
     # Finally import/source the file if needed
@@ -2130,7 +2134,7 @@ fi
 # Check for or create a pid file for the program
 # takes program/pidfile name as a first parameter, this is the unique ID
 # Exits with error if a previous matching pidfile is found
-function init_pid() {
+function init_pid {
     pidfile="${pid_prefix}${1}"
     if [ -f "${pidfile}" ]; then
         file_size="$(wc -c < "${pidfile}")"
@@ -2162,13 +2166,13 @@ function init_pid() {
 }
 
 # Send success signal to other process by name
-function signal_success() {
+function signal_success {
     signal "${1}" "SIGCONT" "Success"
 }
 
 # Send failure signal to other process by name if send_failure_signal is true
 send_failure_signal="${send_failure_signal:-true}"
-function signal_failure() {
+function signal_failure {
     if ${send_failure_signal} ; then
         signal "${1}" "SIGUSR2" "Failure"
     fi
@@ -2176,7 +2180,7 @@ function signal_failure() {
 
 # Send a signal to process, read pid from file or search by name
 # Parameters are: filename/processname signal message
-function signal() {
+function signal {
     pidfile="${pid_prefix}${1}"
     # Check if first parameter is pidfile or process name/search string
     if init_pid "${1}" > /dev/null || [ ${?} == 129 ]; then
@@ -2219,6 +2223,21 @@ function load_config {
             fi
         fi
     done < "${config_file}";
+}
+
+# Load settings from config file if they have not been set already
+# First parameter is filename, all consequent parameters are assumed to be
+# configuration parameters
+function load_missing_config {
+    declare -a new_settings
+    new_settings=()
+    for setting in "${@:2}"; do
+        if [ -z "${!setting:-}" ] ; then
+            new_settings+=( "${setting}" )
+        fi
+    done
+    debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
+    load_config "${1}" "${new_settings[*]}"
 }
 
 # Make sure symlink exists and points to the correct target, will remove
