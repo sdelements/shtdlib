@@ -9,6 +9,9 @@ type -t import | grep -q '^function$' || function debug { echo "${@:2}" ; }
 
 # Import or source
 function import_or_source {
+    # Import prevents the same source files from being imported multiple times
+    # and preserves the order definition for variables and functions since they
+    # don't get overwritten by subsequent imports.
     if type -t import | grep -q '^function$' ; then
         debug 10 "Importing ${1}"
         import "${1}"
