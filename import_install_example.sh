@@ -59,6 +59,7 @@ function import_lib {
                 debug 10 "Found ${pref_lib}, attempting to import/source"
                 import_or_source "${pref_lib}" && return 0
                 echo "Unable to import/source ${pref_lib}!"
+                return 1
             fi
         done
         full_path="$(dirname "${full_path}")"
