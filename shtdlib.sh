@@ -2638,7 +2638,7 @@ function test_shtdlib {
     assert [ "$(compare_versions '4.0.0 3.0.0 2.0.0 1.1.1test 1.0.0' ; echo "${?}" )" == '4' ]
 
     # Test process signaling
-    test_signal_process
+    # test_signal_process
 
     # Test filesystem object activity triggers
     test_add_on_mod
