@@ -81,6 +81,9 @@ Version: ${version:-${shtdlib_version}}
 EOF
 }
 
+# Store all parameters as an array for `parse_opt_arg`
+# shellcheck disable=2034
+parameter_array=( "${@}" )
 # Parse command line arguments
 function parse_arguments {
     debug 5 "Parse Arguments got argument: ${1}"
@@ -119,6 +122,7 @@ function parse_arguments {
             export verbose=true
             # shellcheck disable=SC2154
             debug 1 "Set verbosity to: ${verbosity}"
+            debug 1 "Set verbose to: ${verbose}"
         ;;
         'h'|'help'|'version')    # Help
             print_usage
