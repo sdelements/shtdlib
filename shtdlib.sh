@@ -1194,29 +1194,37 @@ function process_deferred_required_arguments {
 # Parse for optional arguments (-f vs. -f optional_argument)
 # Takes variable name as first arg and default value as optional second
 # variable will be initialized in any case for compat with -e
-parameter_array=(${@:-}) # Store all parameters as an array
+# You need to set or export `parameter_array` in the script that uses `parse_opt_arg`:
+#
+#   # shellcheck disable=2034
+#   parameter_array=(${@:-}) # Store all parameters as an array
+#
+#   # Parse command line arguments
+#   function parse_arguments {
+#      debug 5 "Parse Arguments got argument: ${1}"
+#      case ${1} in
+#      ...
 function parse_opt_arg {
     # Pick up optional arguments
-    debug 10 "Parameter Array is: ${parameter_array[*]}"
-    debug 10 "Option index is: ${OPTIND}"
+    debug 10 "Parameter Array is: ${parameter_array[*]:-}"
     next_arg="${parameter_array[$((OPTIND - 1))]:-}"
-    debug 10 "Optarg index is: ${OPTIND} and next argument is: ${next_arg}"
+    debug 10 "Optarg/Option index is: ${OPTIND} and next argument is: ${next_arg}"
     if [ "$(echo "${next_arg}" | grep -v '^-')" != "" ]; then
-            debug 10 "Found optional argument and setting ${1}=\"${next_arg}\""
-            eval "${1}=\"${next_arg}\""
-            # Skip over the optional value so getopts does not stop processing
-            (( OPTIND++ ))
+        debug 10 "Found optional argument and setting ${1}=\"${next_arg}\""
+        eval "${1}=\"${next_arg}\""
+        # Skip over the optional value so getopts does not stop processing
+        (( OPTIND++ ))
     else
-            if [ "${2}" != '' ]; then
-                debug 10 "Optional argument not found, using default and setting ${1}=\"${2}\""
-                eval "${1}=\"${2}\""
-            else
-                debug 10 "Initializing empty variable ${1}"
-                eval "${1}="
-            fi
+        if [ "${2}" != '' ]; then
+            debug 10 "Optional argument not found, using default and setting ${1}=\"${2}\""
+            eval "${1}=\"${2}\""
+        else
+            debug 10 "Initializing empty variable ${1}"
+            eval "${1}="
+        fi
     fi
     unset next_arg
-    color_echo cyan "Set argument: ${1} to \"${!1}\""
+    debug 10 "Set argument: ${1} to \"${!1}\""
 }
 
 # Resolve DNS name, returns IP if successful, otherwise name and error code
