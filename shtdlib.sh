@@ -1194,7 +1194,7 @@ function process_deferred_required_arguments {
 # Parse for optional arguments (-f vs. -f optional_argument)
 # Takes variable name as first arg and default value as optional second
 # variable will be initialized in any case for compat with -e
-# You need to export `parameter_array` in the script that uses `parse_opt_arg`:
+# You need to set or export `parameter_array` in the script that uses `parse_opt_arg`:
 #
 #   # shellcheck disable=2034
 #   parameter_array=(${@:-}) # Store all parameters as an array
