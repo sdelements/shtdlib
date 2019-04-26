@@ -115,7 +115,7 @@ function print_usage {
 cat << EOF
 usage: ${0} destination_path file(s) director(y/ies)
 
-rtenvsub
+rtenvsub.sh
 
 Real time environment variable based templating engine
 
@@ -153,6 +153,9 @@ Version: ${version:-${shtdlib_version}}
 EOF
 }
 
+# Store all parameters as an array for `parse_opt_arg`
+# shellcheck disable=2034
+parameter_array=( "${@}" )
 # Parse command line arguments
 function parse_arguments {
     debug 5 "Parse Arguments got argument: ${1}"
@@ -191,6 +194,7 @@ function parse_arguments {
             export verbose=true
             # shellcheck disable=SC2154
             debug 1 "Set verbosity to: ${verbosity}"
+            debug 1 "Set verbose to: ${verbose}"
         ;;
         'h'|'help'|'version')    # Help
             print_usage
@@ -221,15 +225,16 @@ function parse_arguments {
 while getopts ":-:p:s:ndotvh" opt; do
     parse_arguments "${opt}"
 done
+
 all_arguments=( "${@}" )
 declare -a non_argument_parameters
 for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
-        # shellcheck disable=SC2004
-	if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' '-p' '-s' '-v' ; then
-            non_argument_parameters[(${index})]="${all_arguments[${index}]}"
-        else
-            break
-        fi
+    # shellcheck disable=SC2004
+    if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' '-p' '-s' '-v' ; then
+        non_argument_parameters[(${index})]="${all_arguments[${index}]}"
+    else
+        break
+    fi
 done
 debug 10 "Non-argument parameters:" "${non_argument_parameters[*]:-}"
 
@@ -262,7 +267,7 @@ function setup_named_pipe {
     done
 }
 
-# Render configuratin template to a file using envsubst
+# Render configuration template to a file using envsubst
 function render_file {
     local destination="${1}"
     local file="${2}"
@@ -302,23 +307,23 @@ function inotify_looper  {
                 ;;
                 'MODIFY'|'CLOSE_WRITE') # File modified events
                     debug 6 "File modification event on: ${dir_file_events[*]}"
-                    if [ -n "${process}" ] ; then
-                        signal_process "${process}" "${signal}"
-                    fi
                     if ${nofifo} ; then
                         render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
+                    fi
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
                     fi
                 ;;
                 'MOVED_TO'|'CREATE') # New file events
                     debug 6 "New file event on: ${dir_file_events[*]} ${event}"
                     create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
-                    if [ -n "${process}" ] ; then
-                        signal_process "${process}" "${signal}"
-                    fi
                     if ${nofifo} ; then
                         render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
                     else
                         setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
+                    fi
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
                     fi
                 ;;
                 'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
