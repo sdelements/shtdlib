@@ -195,7 +195,7 @@ function setup_named_pipe {
     done
 }
 
-# Render configuratin template to a file using envsubst
+# Render configuration template to a file using envsubst
 function render_file {
     local destination="${1}"
     local file="${2}"
