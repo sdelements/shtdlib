@@ -20,10 +20,82 @@ version='0.1'
 # Set a safe umask
 umask 0077
 
-# Import the standard shell library
-# shellcheck source=../shtdlib.sh disable=SC1091
-source "$(dirname "${0}")/../shtdlib.sh" &> /dev/null || ../shtdlib.sh &> /dev/null || source ./shtdlib.sh &> /dev/null || source shtdlib.sh
+default_library_name='shtdlib.sh'
+default_base_download_url='https://raw.githubusercontent.com/sdelements/shtdlib/master'
+default_install_path='/usr/local/bin'
 
+# Temporary debug function
+type -t import | grep -q '^function$' || function debug { echo "${@:2}" ; }
+
+# Import or source
+function import_or_source {
+    if type -t import | grep -q '^function$' ; then
+        debug 10 "Importing ${1}"
+        import "${1}"
+    else
+        debug 10 "Sourcing ${1}"
+        # shellcheck disable=1090
+        source "${1}"
+    fi
+}
+
+# Library download function, optionally accepts a full path/name and URL
+function download_lib {
+    local tmp_path="${1:-$(mktemp)}"
+    local lib_url="${2:-${default_base_download_url}/${default_library_name}}"
+    curl -s -l -o "${tmp_path}" "${lib_url}" || wget --no-verbose "${lib_url}" --output-document "${tmp_path}" || return 1
+}
+
+# Library install function, optionally accepts a URL and a full path/name
+# shellcheck disable=SC2120,SC2119
+function install_lib {
+    local lib_path="${1:-${default_install_path}/${default_library_name}}"
+    local lib_name="${2:-$(basename "${lib_path}")}"
+    local tmp_path="${3:-$(mktemp)}"
+
+    echo "Installing library ${lib_name} to ${lib_path}"
+    download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"
+    mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || return 1
+    chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
+    import_or_source "${lib_path}"
+    color_echo green "Installed ${lib_name} to ${lib_path} successfully"
+}
+
+# Library import function, accepts one optional parameter, name of the file to import
+# shellcheck disable=SC2120,SC2119
+function import_lib {
+    local full_path
+    local lib_name="${1:-${default_library_name}}"
+    local lib_no_ext="${lib_name%.*}"
+    local lib_basename_s="${lib_no_ext##*/}"
+    full_path="$(readlink -f "${BASH_SOURCE[0]}" 2> /dev/null || realpath "${BASH_SOURCE[0]}" 2> /dev/null || greadlink -f "${BASH_SOURCE[0]}" 2> /dev/null || true)"
+    full_path="${full_path:-${0}}"
+    # Search current dir and walk down to see if we can find the library in a
+    # parent directory or sub directories of parent directories named lib/bin
+    while true; do
+        local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
+        for pref_lib in "${pref_pattern[@]}" ; do
+            if [ -e "${pref_lib}" ] ; then
+                debug 10 "Found ${pref_lib}, attempting to import/source"
+                import_or_source "${pref_lib}" && return 0
+                echo "Unable to import/source ${pref_lib}!"
+            fi
+        done
+        full_path="$(dirname "${full_path}")"
+        if [ "${full_path}" == '/' ] ; then
+            # If we haven't found the library try the PATH or install if needed
+            debug 10 "Attempting to import/source ${lib_name}"
+            import_or_source "${lib_name}" 2> /dev/null || install_lib "${default_install_path}/${lib_name}" "${lib_name}" && return 0
+            # If nothing works then we fail
+            echo "Unable to import ${lib_name}"
+            return 1
+        fi
+    done
+}
+
+# Import the shell standard library
+# shellcheck disable=SC2119
+import_lib
 
 debug 10 "Running ${0} with PID: ${$}"
 
@@ -43,7 +115,7 @@ function print_usage {
 cat << EOF
 usage: ${0} destination_path file(s) director(y/ies)
 
-rtenvsub
+rtenvsub.sh
 
 Real time environment variable based templating engine
 
@@ -81,6 +153,9 @@ Version: ${version:-${shtdlib_version}}
 EOF
 }
 
+# Store all parameters as an array for `parse_opt_arg`
+# shellcheck disable=2034
+parameter_array=( "${@}" )
 # Parse command line arguments
 function parse_arguments {
     debug 5 "Parse Arguments got argument: ${1}"
@@ -119,6 +194,7 @@ function parse_arguments {
             export verbose=true
             # shellcheck disable=SC2154
             debug 1 "Set verbosity to: ${verbosity}"
+            debug 1 "Set verbose to: ${verbose}"
         ;;
         'h'|'help'|'version')    # Help
             print_usage
@@ -149,15 +225,16 @@ function parse_arguments {
 while getopts ":-:p:s:ndotvh" opt; do
     parse_arguments "${opt}"
 done
+
 all_arguments=( "${@}" )
 declare -a non_argument_parameters
 for (( index=${#@}-1 ; index>=0 ; index-- )) ; do
-        # shellcheck disable=SC2004
-	if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' '-p' '-s' '-v' ; then
-            non_argument_parameters[(${index})]="${all_arguments[${index}]}"
-        else
-            break
-        fi
+    # shellcheck disable=SC2004
+    if ! [[ "${all_arguments[$index]}" =~ -[-:alphanum:]* ]] && ! in_array "${all_arguments[$(($index - 1))]}" '--signal' '--process' '--verbose' '-p' '-s' '-v' ; then
+        non_argument_parameters[(${index})]="${all_arguments[${index}]}"
+    else
+        break
+    fi
 done
 debug 10 "Non-argument parameters:" "${non_argument_parameters[*]:-}"
 
@@ -190,7 +267,7 @@ function setup_named_pipe {
     done
 }
 
-# Render configuratin template to a file using envsubst
+# Render configuration template to a file using envsubst
 function render_file {
     local destination="${1}"
     local file="${2}"
@@ -230,23 +307,23 @@ function inotify_looper  {
                 ;;
                 'MODIFY'|'CLOSE_WRITE') # File modified events
                     debug 6 "File modification event on: ${dir_file_events[*]}"
-                    if [ -n "${process}" ] ; then
-                        signal_process "${process}" "${signal}"
-                    fi
                     if ${nofifo} ; then
                         render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
+                    fi
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
                     fi
                 ;;
                 'MOVED_TO'|'CREATE') # New file events
                     debug 6 "New file event on: ${dir_file_events[*]} ${event}"
                     create_directory_structure "${destination}" "${dir_file_events[0]}" "${full_path}"
-                    if [ -n "${process}" ] ; then
-                        signal_process "${process}" "${signal}"
-                    fi
                     if ${nofifo} ; then
                         render_file "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}"
                     else
                         setup_named_pipe "${destination}" "${dir_file_events[0]}/${dir_file_events[1]}" "${full_path}" &
+                    fi
+                    if [ -n "${process}" ] ; then
+                        signal_process "${process}" "${signal}"
                     fi
                 ;;
                 'MOVED_FROM'|'DELETE'|'MOVE_SELF') # File/Directory deletion events
@@ -321,7 +398,7 @@ function mirror_envsubst_paths {
             color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
-                add_on_sig "rm -f ${destination}/${file#${full_path}}"
+                add_on_sig "rm -f ${destination}${file#${full_path}}"
                 if ${nofifo} ; then
                     render_file "${destination}" "${file}" "${full_path}"
                 else
@@ -334,7 +411,7 @@ function mirror_envsubst_paths {
         # reverse order to ensure safety of operation without recursive rm
         local index
         for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-            add_on_sig "rmdir ${destination}/${directories[${index}]#${full_path}}"
+            add_on_sig "rmdir ${destination}${directories[${index}]#${full_path}}"
         done
 
         # Run update loop and detach it
