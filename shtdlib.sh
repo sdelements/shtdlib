@@ -1969,6 +1969,24 @@ function gpg_sign_file {
     ${3} gpg --armor --sign -o "'${2}' < '${1}'" || exit_on_fail
 }
 
+# Extracts the git reference and most likely candidate to identify a
+# reference by a human readable name (not SHA), accepts a path as a parameter
+# and the path should contain a git repository.
+# Exports variables git_ref and git_tag with the corresponding values
+function get_git_ref {
+    # Get the current git reference and tag
+    original_path="${PWD}"
+    assert test -n "${1:-}"
+    assert test -d "${1}"
+    assert whichs git
+    cd "${1}" || exit_on_fail
+    git_ref="$(git rev-parse HEAD)"
+    git_tag="$(version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
+    cd "${original_path}" || exit_on_fail
+    export git_ref
+    export git_tag
+}
+
 # Reads bash files and inlines any "source" references to a new file
 # If second parameter is empty or "-" the new file is printed to stdout
 declare -a processed_inline_sources=()
