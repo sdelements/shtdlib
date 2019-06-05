@@ -661,7 +661,7 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
 
-# Set username not available (unattended run)
+#Set username not available (unattended run) if passwd record exists
 if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
     USER="$(whoami)"
     export USER
