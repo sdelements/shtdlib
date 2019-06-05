@@ -12,13 +12,19 @@ function import_or_source {
     # Import prevents the same source files from being imported multiple times
     # and preserves the order definition for variables and functions since they
     # don't get overwritten by subsequent imports.
+    local library="${1}"
+    shift
     if type -t import | grep -q '^function$' ; then
-        debug 10 "Importing ${1}"
-        import "${1}"
+        debug 10 "Trying to import ${library}"
+        import "${library}"
     else
-        debug 10 "Sourcing ${1}"
         # shellcheck disable=1090
-        source "${1}"
+        if [ -e "${library}" ] ; then
+            debug 10 "Trying to source ${library}"
+            source "${library}"
+        else
+            return 1
+        fi
     fi
 }
 
@@ -36,9 +42,9 @@ function install_lib {
     local lib_name="${2:-$(basename "${lib_path}")}"
     local tmp_path="${3:-$(mktemp)}"
 
-    echo "Installing library ${lib_name} to ${lib_path}"
+    echo "Attempting to install library ${lib_name} to ${lib_path}"
     download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"
-    mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || lib_path="${tmp_path}"
+    mv "${tmp_path}" "${lib_path}" 2> /dev/null || sudo mv "${tmp_path}" "${lib_path}" 2> /dev/null || echo "Unable to install, reverting to one time use" && export lib_path="${tmp_path}"
     chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
     import_or_source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
