@@ -662,7 +662,7 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 cleanup="${cleanup:-true}"
 
 # Set username not available (unattended run)
-if [ -z "${USER:-}" ]; then
+if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
     USER="$(whoami)"
     export USER
 fi
