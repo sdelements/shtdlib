@@ -1982,9 +1982,22 @@ function get_git_ref {
     cd "${1}" || exit_on_fail
     git_ref="$(git rev-parse HEAD)"
     git_tag="$(_version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
-    cd "${original_path}" || exit_on_fail
     export git_ref
     export git_tag
+    cd "${original_path}" || exit_on_fail
+}
+
+# Sets git_clean to false if there are unstaged changes in a git repo or true
+# if current state matches HEAD
+function get_git_status {
+    original_path="${PWD}"
+    assert test -n "${1:-}"
+    assert test -d "${1}"
+    assert whichs git
+    cd "${1}" || exit_on_fail
+    git diff --quiet && git_clean='true' || git_clean='false'
+    export git_clean
+    cd "${original_path}" || exit_on_fail
 }
 
 # Reads bash files and inlines any "source" references to a new file
