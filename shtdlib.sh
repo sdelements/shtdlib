@@ -1981,7 +1981,7 @@ function get_git_ref {
     assert whichs git
     cd "${1}" || exit_on_fail
     git_ref="$(git rev-parse HEAD)"
-    git_tag="$(version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
+    git_tag="$(_version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
     cd "${original_path}" || exit_on_fail
     export git_ref
     export git_tag
