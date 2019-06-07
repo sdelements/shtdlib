@@ -700,6 +700,34 @@ function priv_esc_with_env {
     return ${?}
 }
 
+# Create and manage a custom ssh auth agent, socket and pid
+# Create a special ssh-agent for docker, accepts two optional
+# parameters/arguments, the location of the named socket and the pid file
+function get_custom_ssh_auth_agent {
+    docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
+    docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
+    if [ -S "${docker_ssh_auth_socket_path}" ] ; then
+        color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
+        export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
+        if [ -f "${docker_ssh_auth_pid_file}" ] ; then
+            read -r SSH_AGENT_PID < "${docker_ssh_auth_pid_file}"
+            export SSH_AGENT_PID
+        fi
+    else
+        color_echo cyan "Creating docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
+        assert whichs ssh-agent
+        eval $(ssh-agent -a ${docker_ssh_auth_socket_path})
+        echo "${SSH_AGENT_PID}" > "${docker_ssh_auth_pid_file}"
+    fi
+
+    color_echo cyan "Checking ssh-agent key status"
+    assert whichs ssh-add
+    if ! ssh-add -l -q &> /dev/null ; then
+        ssh-add || exit_on_fail "Unable to load ssh key into agent"
+    fi
+    assert test -n "${SSH_AUTH_SOCK}"
+}
+
 # A subprocess which performs a command when it receives a signal
 # First parameter is the signal and the rest is assumed to be the command
 # Returns the PID of the subprocess
