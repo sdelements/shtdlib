@@ -706,7 +706,7 @@ function priv_esc_with_env {
 function get_custom_ssh_auth_agent {
     docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
     docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
-    if [ -S "${docker_ssh_auth_socket_path}" ] ; then
+    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep --pidfile ${docker_ssh_auth_pid_file} 2> /dev/null ; then
         color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
         if [ -f "${docker_ssh_auth_pid_file}" ] ; then
