@@ -661,8 +661,8 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
 
-# Set username not available (unattended run)
-if [ -z "${USER:-}" ]; then
+#Set username not available (unattended run) if passwd record exists
+if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
     USER="$(whoami)"
     export USER
 fi
@@ -698,6 +698,34 @@ function priv_esc_with_env {
     debug 11  "${priv_esc_cmd} /bin/bash -c export SSH_AUTH_SOCK='${SSH_AUTH_SOCK}' && export SUDO_USER_HOME='${HOME}' && export KRB5CCNAME='${KRB5CCNAME}' && export GPG_TTY='${init_tty}' && alias ssh='ssh -l ${USER}' && ${*}"
     ${priv_esc_cmd} /bin/bash -c "export SSH_AUTH_SOCK='${SSH_AUTH_SOCK}' && export SUDO_USER_HOME='${HOME}' && export KRB5CCNAME='${KRB5CCNAME}' && export GPG_TTY='${init_tty}' && alias ssh='ssh -l ${USER}' && ${*}"
     return ${?}
+}
+
+# Create and manage a custom ssh auth agent, socket and pid
+# Create a special ssh-agent for docker, accepts two optional
+# parameters/arguments, the location of the named socket and the pid file
+function get_custom_ssh_auth_agent {
+    docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
+    docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
+    if [ -S "${docker_ssh_auth_socket_path}" ] ; then
+        color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
+        export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
+        if [ -f "${docker_ssh_auth_pid_file}" ] ; then
+            read -r SSH_AGENT_PID < "${docker_ssh_auth_pid_file}"
+            export SSH_AGENT_PID
+        fi
+    else
+        color_echo cyan "Creating docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
+        assert whichs ssh-agent
+        eval $(ssh-agent -a ${docker_ssh_auth_socket_path})
+        echo "${SSH_AGENT_PID}" > "${docker_ssh_auth_pid_file}"
+    fi
+
+    color_echo cyan "Checking ssh-agent key status"
+    assert whichs ssh-add
+    if ! ssh-add -l -q &> /dev/null ; then
+        ssh-add || exit_on_fail "Unable to load ssh key into agent"
+    fi
+    assert test -n "${SSH_AUTH_SOCK}"
 }
 
 # A subprocess which performs a command when it receives a signal
@@ -1981,10 +2009,23 @@ function get_git_ref {
     assert whichs git
     cd "${1}" || exit_on_fail
     git_ref="$(git rev-parse HEAD)"
-    git_tag="$(version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
-    cd "${original_path}" || exit_on_fail
+    git_tag="$(_version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
     export git_ref
     export git_tag
+    cd "${original_path}" || exit_on_fail
+}
+
+# Sets git_clean to false if there are unstaged changes in a git repo or true
+# if current state matches HEAD
+function get_git_status {
+    original_path="${PWD}"
+    assert test -n "${1:-}"
+    assert test -d "${1}"
+    assert whichs git
+    cd "${1}" || exit_on_fail
+    git diff --quiet && git_clean='true' || git_clean='false'
+    export git_clean
+    cd "${original_path}" || exit_on_fail
 }
 
 # Reads bash files and inlines any "source" references to a new file
