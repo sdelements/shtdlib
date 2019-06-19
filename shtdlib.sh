@@ -661,6 +661,54 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
 
+# Create NSS Wrapper passwd and group files
+# Accepts 3 optional arguments, username, group and home directory
+# Defaults to bob, builders and a temporary directory
+# Note that if a home directory is specified and it's temporary it will need to
+# be removed/cleaned up by the code calling this function
+function init_nss_wrapper {
+    umask_decorator_mask=${NSS_WRAPPED_FILE_MASK:-0002}
+    umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
+    debug 8 'Initializing NSS Wrapper'
+    assert test -n "${BUILD_GUID}"
+
+    export TMP_USER="${1:-bob}"
+    export TMP_GROUP="${2:-builders}"
+    tmp_passwd_file="$(mktemp)" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
+    tmp_group_file="$(mktemp)" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
+    tmp_hosts_file="$(mktemp)" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
+
+    if [ -n "${3:-}" ] ; then
+        tmp_home_path="${3}"
+    else
+        tmp_home_path="$(mktemp -d)" && add_on_exit "rm -Rf '${tmp_home_path}'" && chown -R "${BUILD_GUID}" "${tmp_home_path}"
+    fi
+    export tmp_home_path
+
+    mkdir -p "${tmp_home_path}"
+    cat '/etc/passwd' > "${tmp_passwd_file}"
+    cat '/etc/group' > "${tmp_group_file}"
+    cat '/etc/hosts' > "${tmp_hosts_file}"
+    export BUID="${BUILD_GUID%:*}"
+    export BGID="${BUILD_GUID#*:}"
+    passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${tmp_home_path}:/bin/false"
+    group_string="${TMP_GROUP}:x:${BUID}:"
+    passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
+    group_pattern=".*:x:${BGID}:.*"
+
+    sed -i "s|.*:x:${BUID}:.*:.*:.*:.*|${passwd_string}|g" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
+    sed -i "s|.*:x:${BGID}:.*|${group_string}|g" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
+    sed -i "/${passwd_pattern}/!{q42}; {s|${passwd_pattern}|${passwd_string}|g}" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
+    sed -i "/${group_pattern}/!{q42}; {s|${group_pattern}|${group_string}|g}" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
+
+    export LD_PRELOAD='libnss_wrapper.so'
+    export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
+    export NSS_WRAPPER_GROUP="${tmp_group_file}"
+    export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
+}
+
+
 #Set username not available (unattended run) if passwd record exists
 if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
     USER="$(whoami)"
