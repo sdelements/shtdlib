@@ -465,7 +465,7 @@ function readlink_m {
 # When input is piped it's assumed to be space and/or newline (NL) delimited
 # When passed as parameters each one is processed independently
 function _version_sort {
-    debug 10 "${FUNCNAME} called with ${*}"
+    debug 12 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
@@ -754,7 +754,7 @@ function priv_esc_with_env {
 function get_custom_ssh_auth_agent {
     docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
     docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
-    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep -F ${docker_ssh_auth_pid_file} 2> /dev/null ; then
+    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep -F ${docker_ssh_auth_pid_file} &> /dev/null ; then
         color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
         if [ -f "${docker_ssh_auth_pid_file}" ] ; then
@@ -2052,15 +2052,14 @@ function gpg_sign_file {
 
 # Extracts the git reference and most likely candidate to identify a
 # reference by a human readable name (not SHA), accepts a path as a parameter
-# and the path should contain a git repository.
+# and the path should contain a git repository, defaults to current path.
 # Exports variables git_ref and git_tag with the corresponding values
 function get_git_ref {
     # Get the current git reference and tag
     original_path="${PWD}"
-    assert test -n "${1:-}"
-    assert test -d "${1}"
+    assert test -d "${1:-.}"
     assert whichs git
-    cd "${1}" || exit_on_fail
+    cd "${1:-.}" || exit_on_fail
     git_ref="$(git rev-parse HEAD)"
     git_tag="$(_version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
     export git_ref
