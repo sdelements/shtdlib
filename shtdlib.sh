@@ -2606,6 +2606,7 @@ function test_create_secure_tmp {
 # assumed to be container image names (bash versions) to test with.
 # Also supports "local" which will test without using containers.
 function test_shtdlib {
+    export verbosity=11
     # Run this function inside bash containers as/if specified
     if in_array 'local' "${@:-}" ; then
         if [ "${#}" -ne 1 ] ; then
