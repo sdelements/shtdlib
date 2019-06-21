@@ -675,6 +675,8 @@ function init_nss_wrapper {
 
     export TMP_USER="${1:-bob}"
     export TMP_GROUP="${2:-builders}"
+    # The ordering of -t and -d is important so this works on both BSD/OSX an
+    # linux since template and -t have different meanings and syntaxes
     tmp_passwd_file="$(mktemp -t "passwd.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
     tmp_group_file="$(mktemp -t "group.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
     tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
@@ -682,7 +684,7 @@ function init_nss_wrapper {
     if [ -n "${3:-}" ] ; then
         TMP_HOME_PATH="${3}"
     else
-        TMP_HOME_PATH="$(mktemp -t -d "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
     fi
     export TMP_HOME_PATH
 
