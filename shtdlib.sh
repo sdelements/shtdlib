@@ -465,7 +465,7 @@ function readlink_m {
 # When input is piped it's assumed to be space and/or newline (NL) delimited
 # When passed as parameters each one is processed independently
 function _version_sort {
-    debug 10 "${FUNCNAME} called with ${*}"
+    debug 12 "${FUNCNAME} called with ${*}"
     # 'sort' doesn't properly handle SIGPIPE
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value='false'
@@ -661,6 +661,56 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
 
+# Create NSS Wrapper passwd and group files
+# Accepts 3 optional arguments, username, group and home directory
+# Defaults to bob, builders and a temporary directory
+# Note that if a home directory is specified and it's temporary it will need to
+# be removed/cleaned up by the code calling this function
+function init_nss_wrapper {
+    umask_decorator_mask=${NSS_WRAPPED_FILE_MASK:-0002}
+    umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
+
+    debug 8 'Initializing NSS Wrapper'
+    assert test -n "${BUILD_GUID}"
+
+    export TMP_USER="${1:-bob}"
+    export TMP_GROUP="${2:-builders}"
+    # The ordering of -t and -d is important so this works on both BSD/OSX an
+    # linux since template and -t have different meanings and syntaxes
+    tmp_passwd_file="$(mktemp -t "passwd.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
+    tmp_group_file="$(mktemp -t "group.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
+    tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
+
+    if [ -n "${3:-}" ] ; then
+        TMP_HOME_PATH="${3}"
+    else
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
+    fi
+    export TMP_HOME_PATH
+
+    mkdir -p "${TMP_HOME_PATH}"
+    cat '/etc/passwd' > "${tmp_passwd_file}"
+    cat '/etc/group' > "${tmp_group_file}"
+    cat '/etc/hosts' > "${tmp_hosts_file}"
+    export BUID="${BUILD_GUID%:*}"
+    export BGID="${BUILD_GUID#*:}"
+    passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${TMP_HOME_PATH}:/bin/false"
+    group_string="${TMP_GROUP}:x:${BUID}:"
+    passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
+    group_pattern=".*:x:${BGID}:.*"
+
+    sed -i "s|.*:x:${BUID}:.*:.*:.*:.*|${passwd_string}|g" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
+    sed -i "s|.*:x:${BGID}:.*|${group_string}|g" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
+    sed -i "/${passwd_pattern}/!{q42}; {s|${passwd_pattern}|${passwd_string}|g}" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
+    sed -i "/${group_pattern}/!{q42}; {s|${group_pattern}|${group_string}|g}" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
+
+    export LD_PRELOAD='libnss_wrapper.so'
+    export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
+    export NSS_WRAPPER_GROUP="${tmp_group_file}"
+    export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
+}
+
+
 #Set username not available (unattended run) if passwd record exists
 if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
     USER="$(whoami)"
@@ -706,7 +756,7 @@ function priv_esc_with_env {
 function get_custom_ssh_auth_agent {
     docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
     docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
-    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep -F ${docker_ssh_auth_pid_file} 2> /dev/null ; then
+    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep -F ${docker_ssh_auth_pid_file} &> /dev/null ; then
         color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
         if [ -f "${docker_ssh_auth_pid_file}" ] ; then
@@ -2004,15 +2054,14 @@ function gpg_sign_file {
 
 # Extracts the git reference and most likely candidate to identify a
 # reference by a human readable name (not SHA), accepts a path as a parameter
-# and the path should contain a git repository.
+# and the path should contain a git repository, defaults to current path.
 # Exports variables git_ref and git_tag with the corresponding values
 function get_git_ref {
     # Get the current git reference and tag
     original_path="${PWD}"
-    assert test -n "${1:-}"
-    assert test -d "${1}"
+    assert test -d "${1:-.}"
     assert whichs git
-    cd "${1}" || exit_on_fail
+    cd "${1:-.}" || exit_on_fail
     git_ref="$(git rev-parse HEAD)"
     git_tag="$(_version_sort "$(git show-ref --tags | grep "${git_ref}" || git show-ref | grep "${git_ref}" | awk -F/ '{ print $NF}')" | tail -n1)"
     export git_ref
