@@ -915,7 +915,7 @@ function on_exit {
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
     trap - EXIT
-    if [ ! $interactive ]; then
+    if ! $interactive ; then
         # Be a nice Unix citizen and propagate the signal
         kill -s EXIT ${$}
     fi
@@ -935,7 +935,7 @@ function on_break {
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - "${1}"
-     if [ ! $interactive ]; then
+    if ! $interactive ; then
         # Be a nice Unix citizen and propagate the signal
         kill -s EXIT ${$}
     fi
