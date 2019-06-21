@@ -917,7 +917,7 @@ function on_exit {
     trap - EXIT
     if ! $interactive ; then
         # Be a nice Unix citizen and propagate the signal
-        kill -s EXIT ${$}
+        kill -s EXIT "${$}"
     fi
 }
 
@@ -937,7 +937,7 @@ function on_break {
     trap - "${1}"
     if ! $interactive ; then
         # Be a nice Unix citizen and propagate the signal
-        kill -s EXIT ${$}
+        kill -s "${1}" "${$}"
     fi
 }
 
