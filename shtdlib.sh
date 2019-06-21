@@ -350,7 +350,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/shtdlib.sh && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/$(basename ${BASH_SOURCE[0]}) && ${*}"
         return 0
     fi
     return 1
