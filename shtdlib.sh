@@ -675,14 +675,14 @@ function init_nss_wrapper {
 
     export TMP_USER="${1:-bob}"
     export TMP_GROUP="${2:-builders}"
-    tmp_passwd_file="$(mktemp)" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
-    tmp_group_file="$(mktemp)" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
-    tmp_hosts_file="$(mktemp)" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
+    tmp_passwd_file="$(mktemp -t "passwd.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
+    tmp_group_file="$(mktemp -t "group.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
+    tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
 
     if [ -n "${3:-}" ] ; then
         tmp_home_path="${3}"
     else
-        tmp_home_path="$(mktemp -d)" && add_on_exit "rm -Rf '${tmp_home_path}'" && chown -R "${BUILD_GUID}" "${tmp_home_path}"
+        tmp_home_path="$(mktemp -t -d "home.${TMP_USER}")" && add_on_exit "rm -Rf '${tmp_home_path}'" && chown -R "${BUILD_GUID}" "${tmp_home_path}"
     fi
     export tmp_home_path
 
