@@ -682,7 +682,7 @@ function init_nss_wrapper {
     if [ -n "${3:-}" ] ; then
         TMP_HOME_PATH="${3}"
     else
-        TMP_HOME_PATH="$(mktemp -t -d "home.${TMP_USER}")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
+        TMP_HOME_PATH="$(mktemp -t -d "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
     fi
     export TMP_HOME_PATH
 
