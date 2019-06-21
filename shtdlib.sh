@@ -680,19 +680,19 @@ function init_nss_wrapper {
     tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
 
     if [ -n "${3:-}" ] ; then
-        tmp_home_path="${3}"
+        TMP_HOME_PATH="${3}"
     else
-        tmp_home_path="$(mktemp -t -d "home.${TMP_USER}")" && add_on_exit "rm -Rf '${tmp_home_path}'" && chown -R "${BUILD_GUID}" "${tmp_home_path}"
+        TMP_HOME_PATH="$(mktemp -t -d "home.${TMP_USER}")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
     fi
-    export tmp_home_path
+    export TMP_HOME_PATH
 
-    mkdir -p "${tmp_home_path}"
+    mkdir -p "${TMP_HOME_PATH}"
     cat '/etc/passwd' > "${tmp_passwd_file}"
     cat '/etc/group' > "${tmp_group_file}"
     cat '/etc/hosts' > "${tmp_hosts_file}"
     export BUID="${BUILD_GUID%:*}"
     export BGID="${BUILD_GUID#*:}"
-    passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${tmp_home_path}:/bin/false"
+    passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${TMP_HOME_PATH}:/bin/false"
     group_string="${TMP_GROUP}:x:${BUID}:"
     passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
     group_pattern=".*:x:${BGID}:.*"
