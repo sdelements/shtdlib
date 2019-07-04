@@ -500,6 +500,22 @@ function version_sort {
     _version_sort ${@} ${piped_versions[@]}
 }
 
+# Increment a version number by 1
+function version_increment {
+  declare -a segment=( ${1//\./ } )
+  declare new_version
+  declare -i carry=1
+
+  for (( n=${#segment[@]}-1; n>=0; n-=1 )); do
+    length=${#segment[n]}
+    new_version=$((segment[n]+carry))
+    [ "${#new_version}" -gt "${length}" ] && carry=1 || carry=0
+    [ "${n}" -gt 0 ] && segment[n]=${new_version: -length} || segment[n]=${new_version}
+  done
+  new_version="${segment[*]}"
+  echo -e "${new_version// /.}"
+}
+
 # Allows clear assert syntax
 function assert {
   debug 10 "Assertion made: ${*}"
@@ -2768,6 +2784,10 @@ function test_shtdlib {
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 
     test_create_secure_tmp
+
+    # Test version increment
+    new_version=$(version_increment 12323.3.2)
+    assert [ "${new_version}" == '12323.3.3' ]
 }
 
 # Test bash version
