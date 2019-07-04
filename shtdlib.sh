@@ -700,7 +700,7 @@ function init_nss_wrapper {
     if [ -n "${4:-}" ] ; then
         TMP_HOME_PATH="${4}"
     else
-        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}"
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}" &> /dev/null
     fi
     export TMP_HOME_PATH
 
