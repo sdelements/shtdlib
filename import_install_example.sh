@@ -71,6 +71,13 @@ function import_lib {
                 return 1
             fi
         done
+        # Try default install path next
+        if [ -f "${default_install_path}/${lib_name}" ] ; then
+            debug 10 "Attempting to import/source ${lib_name}"
+            import_or_source "${default_install_path}/${lib_name}" && return 0
+            echo "Unable to import/source ${default_install_path}/${lib_name}!"
+            return 1
+        fi
         full_path="$(dirname "${full_path}")"
         if [ "${full_path}" == '/' ] ; then
             # If we haven't found the library try the PATH or install if needed
