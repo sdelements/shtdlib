@@ -67,7 +67,7 @@ os_codename='Unknown'
 # Preferred methods
 if [ -e '/etc/redhat-release' ] ; then
     os_family='RedHat'
-elif [-e '/etc/lsb-release'  ] ; then 
+elif [ -e '/etc/lsb-release' ] ; then
     os_family='Debian'
 else
     # Educated guesses
