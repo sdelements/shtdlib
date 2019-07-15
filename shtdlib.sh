@@ -240,6 +240,65 @@ function conditional_exit_on_fail {
     fi
 }
 
+# Traps for cleaning up on exit
+# Note that trap definition needs to happen here not inside the add_on_sig as
+# shown in the original since this can easily be called in a subshell in which
+# case the trap will only apply to that subshell
+declare -a on_exit
+on_exit=()
+declare -a on_break
+on_break=()
+
+function on_exit {
+    # shellcheck disable=SC2181
+    if [ ${?} -ne 0 ]; then
+        # Prints to stderr to provide an easy way to check if the script
+        # failed. Because the exit signal gets propagated only the first call to
+        # this function will know the exit code of the script. All subsequent
+        # calls will see $? = 0 if the previous signal handler did not fail
+        color_echo red "Last command did not complete successfully" >&2
+    fi
+
+    if [ -n "${on_exit:-}" ] ; then
+        debug 10 "Received SIGEXIT, ${#on_exit[@]} items to clean up."
+        if [ ${#on_exit[@]} -gt 0 ]; then
+            for item in "${on_exit[@]}"; do
+                if [ -n "${item}" ] ; then
+                    debug 10 "Executing cleanup statement on exit: ${item}"
+                    # shellcheck disable=SC2091
+                    ${item}
+                fi
+            done
+        fi
+    fi
+    debug 10 "Finished cleaning up, de-registering signal trap"
+    trap - EXIT
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s EXIT "${$}"
+    fi
+}
+
+function on_break {
+    if [ -n "${on_break:-}" ] ; then
+        color_echo red "Break signal received, unexpected exit, ${#on_break[@]} items to clean up."
+        if [ ${#on_break[@]} -gt 0 ]; then
+            for item in "${on_break[@]}"; do
+                if [ -n "${item}" ] ; then
+                    color_echo red "Executing cleanup statement on break: ${item}"
+                    ${item}
+                fi
+            done
+        fi
+    fi
+    # Be a nice Unix citizen and propagate the signal
+    trap - "${1}"
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s "${1}" "${$}"
+    fi
+}
+
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
@@ -297,8 +356,8 @@ function shopt_decorator {
                 debug 10 "Got return code ${return_code}"
                 # Set the option again in case it was unset
                 debug 10 "(Re)Setting ${shopt_decorator_option_name}"
-                shopt -so "${shopt_decorator_option_name}"
-                return ${return_code}
+                on_break "${return_code}" "shopt -so \"${shopt_decorator_option_name}\""
+                return "${return_code}"
             else
                 # Option is not set
                 if "${shopt_decorator_option_value}" ; then
@@ -932,59 +991,6 @@ function add_on_mod {
     done
 }
 
-# Traps for cleaning up on exit
-# Note that trap definition needs to happen here not inside the add_on_sig as
-# shown in the original since this can easily be called in a subshell in which
-# case the trap will only apply to that subshell
-declare -a on_exit
-on_exit=()
-declare -a on_break
-on_break=()
-
-function on_exit {
-    # shellcheck disable=SC2181
-    if [ ${?} -ne 0 ]; then
-        # Prints to stderr to provide an easy way to check if the script
-        # failed. Because the exit signal gets propagated only the first call to
-        # this function will know the exit code of the script. All subsequent
-        # calls will see $? = 0 if the previous signal handler did not fail
-        color_echo red "Last command did not complete successfully" >&2
-    fi
-
-    if [ -n "${on_exit:-}" ] ; then
-        debug 10 "Received SIGEXIT, ${#on_exit[@]} items to clean up."
-        if [ ${#on_exit[@]} -gt 0 ]; then
-            for item in "${on_exit[@]}"; do
-                if [ -n "${item}" ] ; then
-                    debug 10 "Executing cleanup statement on exit: ${item}"
-                    # shellcheck disable=SC2091
-                    ${item}
-                fi
-            done
-        fi
-    fi
-    debug 10 "Finished cleaning up, de-registering signal trap"
-    # Be a nice Unix citizen and propagate the signal
-    trap - EXIT
-    kill -s EXIT ${$}
-}
-
-function on_break {
-    if [ -n "${on_break:-}" ] ; then
-        color_echo red "Break signal received, unexpected exit, ${#on_break[@]} items to clean up."
-        if [ ${#on_break[@]} -gt 0 ]; then
-            for item in "${on_break[@]}"; do
-                if [ -n "${item}" ] ; then
-                    color_echo red "Executing cleanup statement on break: ${item}"
-                    ${item}
-                fi
-            done
-        fi
-    fi
-    # Be a nice Unix citizen and propagate the signal
-    trap - "${1}"
-    kill -s "${1}" "${$}"
-}
 
 function add_on_exit {
     debug 10 "Registering signal action on exit: \"${*}\""
