@@ -356,7 +356,7 @@ function shopt_decorator {
                 debug 10 "Got return code ${return_code}"
                 # Set the option again in case it was unset
                 debug 10 "(Re)Setting ${shopt_decorator_option_name}"
-                on_break "${return_code}" "shopt -so \"${shopt_decorator_option_name}\""
+                add_on_break "${return_code}" "shopt -so \"${shopt_decorator_option_name}\""
                 return "${return_code}"
             else
                 # Option is not set
