@@ -372,7 +372,7 @@ function shopt_decorator {
                 debug 10 "Got return code ${return_code}"
                 # Unset the option in case it was set
                 debug 10 "(Re)Unsetting ${shopt_decorator_option_name}"
-                shopt -uo "${shopt_decorator_option_name}"
+                add_on_break "${return_code}" "shopt -uo \"${shopt_decorator_option_name}\""
                 return ${return_code}
             fi
         fi
