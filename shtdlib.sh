@@ -399,6 +399,7 @@ function shopt_decorator {
 # space separated string of the supported versions.
 function test_decorator {
     # If not running in a container
+    color_echo cyan "Executing test ${FUNCNAME[0]}..."
     if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup 2> /dev/null ; then
         default_bash_versions=( '3.1.23' \
                                 '3.2.57' \
@@ -2541,6 +2542,7 @@ alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 # Test function to decorate
 function test_shopt_decorator {
+    color_echo cyan "Executing test ${FUNCNAME[0]}..."
     shopt_decorator_option_name='pipefail'
     shopt_decorator_option_value=true
     # shellcheck disable=2015
@@ -2552,6 +2554,8 @@ function test_shopt_decorator {
 
 # Test signaling
 function test_signal_process {
+    color_echo cyan "Executing test ${FUNCNAME[0]}..."
+
     signal_processor SIGUSR2 'exit 42' > /dev/null
     local sub_pid_0="${!}"
     signal_processor SIGUSR1 "sleep 2 && kill -s SIGUSR2 ${sub_pid_0} && exit 42" > /dev/null
@@ -2575,6 +2579,8 @@ function test_signal_process {
 
 # Test filesystem monitoring/event triggers
 function test_add_on_mod {
+    color_echo cyan "Executing test ${FUNCNAME[0]}..."
+
     if ! ( whichs inotifywait || whichs fswatch ) ; then
         debug 4 "Unable to locate inotify or fswatch, trying to install them"
         install_package inotify-tools fswatch
@@ -2612,6 +2618,8 @@ function test_add_on_mod {
 
 # Test function for create_secure_tmp function
 function test_create_secure_tmp {
+    color_echo cyan "Executing test ${FUNCNAME[0]}..."
+
     local tmp_file
     local tmp_dir
 
