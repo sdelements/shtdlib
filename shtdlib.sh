@@ -299,6 +299,47 @@ function on_break {
     fi
 }
 
+function add_on_exit {
+    debug 10 "Registering signal action on exit: \"${*}\""
+    if [ -n "${on_exit:-}" ] ; then
+        local n="${#on_exit[@]}"
+    else
+        local n=0
+    fi
+    on_exit[${n}]="${*}"
+    debug 10 "on_exit content: ${on_exit[*]}, size: ${#on_exit[*]}, keys: ${!on_exit[*]}"
+}
+
+function add_on_break {
+    debug 10 "Registering signal action on break: \"${*}\""
+    if [ -n "${on_break:-}" ] ; then
+        local n="${#on_break[@]}"
+    else
+        local n=0
+    fi
+    on_break[${n}]="${*}"
+    debug 10 "on_break content: ${on_break[*]}, size: ${#on_break[*]}, keys: ${!on_break[*]}"
+}
+
+function add_on_sig {
+    add_on_exit "${*}"
+    add_on_break "${*}"
+}
+
+function clear_sig_registry {
+    debug 10 "Clearing all registered signal actions"
+    on_exit=()
+    on_break=()
+}
+
+debug 10 "Setting up signal traps"
+trap on_exit EXIT
+trap "on_break INT" INT
+trap "on_break QUIT" QUIT
+trap "on_break TERM" TERM
+debug 10 "Signal trap successfully initialized"
+
+
 # Umask decorator, changes the umask for a function
 # To use this add a line like the following (without #) as the first line of a function
 # umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
@@ -992,46 +1033,6 @@ function add_on_mod {
     done
 }
 
-
-function add_on_exit {
-    debug 10 "Registering signal action on exit: \"${*}\""
-    if [ -n "${on_exit:-}" ] ; then
-        local n="${#on_exit[@]}"
-    else
-        local n=0
-    fi
-    on_exit[${n}]="${*}"
-    debug 10 "on_exit content: ${on_exit[*]}, size: ${#on_exit[*]}, keys: ${!on_exit[*]}"
-}
-
-function add_on_break {
-    debug 10 "Registering signal action on break: \"${*}\""
-    if [ -n "${on_break:-}" ] ; then
-        local n="${#on_break[@]}"
-    else
-        local n=0
-    fi
-    on_break[${n}]="${*}"
-    debug 10 "on_break content: ${on_break[*]}, size: ${#on_break[*]}, keys: ${!on_break[*]}"
-}
-
-function add_on_sig {
-    add_on_exit "${*}"
-    add_on_break "${*}"
-}
-
-function clear_sig_registry {
-    debug 10 "Clearing all registered signal actions"
-    on_exit=()
-    on_break=()
-}
-
-debug 10 "Setting up signal traps"
-trap on_exit EXIT
-trap "on_break INT" INT
-trap "on_break QUIT" QUIT
-trap "on_break TERM" TERM
-debug 10 "Signal trap successfully initialized"
 
 # Creates a secure temporary directory or file
 #   First argument (REQUIRED) is the name of the caller's return variable
