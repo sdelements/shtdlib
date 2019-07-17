@@ -2357,8 +2357,12 @@ function load_missing_config {
             new_settings+=( "${setting}" )
         fi
     done
-    debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
-    load_config "${1}" "${new_settings[*]}"
+    if [ -n "${new_settings[*]:-}" ] ; then
+        debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
+        load_config "${1}" "${new_settings[*]}"
+    else
+    debug 10 'No missing settings matched/found'
+    fi
 }
 
 # Make sure symlink exists and points to the correct target, will remove
