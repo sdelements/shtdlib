@@ -62,7 +62,7 @@ function import_lib {
     # Search current dir and walk down to see if we can find the library in a
     # parent directory or sub directories of parent directories named lib/bin
     while true; do
-        local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" )
+        local pref_pattern=( "${full_path}/${lib_name}" "${full_path}/${lib_basename_s}/${lib_name}" "${full_path}/lib/${lib_name}" "${full_path}/bin/${lib_name}" "${default_install_path}/${lib_name}" )
         for pref_lib in "${pref_pattern[@]}" ; do
             if [ -e "${pref_lib}" ] ; then
                 debug 10 "Found ${pref_lib}, attempting to import/source"
@@ -71,13 +71,7 @@ function import_lib {
                 return 1
             fi
         done
-        # Try default install path next
-        if [ -f "${default_install_path}/${lib_name}" ] ; then
-            debug 10 "Attempting to import/source ${lib_name}"
-            import_or_source "${default_install_path}/${lib_name}" && return 0
-            echo "Unable to import/source ${default_install_path}/${lib_name}!"
-            return 1
-        fi
+        # Go down one more level
         full_path="$(dirname "${full_path}")"
         if [ "${full_path}" == '/' ] ; then
             # If we haven't found the library try the PATH or install if needed

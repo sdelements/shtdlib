@@ -64,12 +64,20 @@ OS="${OS:-}"
 os_family='Unknown'
 os_name='Unknown'
 os_codename='Unknown'
-apt-get help > /dev/null 2>&1 && os_family='Debian'
-yum help help > /dev/null 2>&1 && os_family='RedHat'
-echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
-if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
-if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
-if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+# Preferred methods
+if [ -e '/etc/redhat-release' ] ; then
+    os_family='RedHat'
+elif [ -e '/etc/lsb-release' ] ; then
+    os_family='Debian'
+else
+    # Educated guesses
+    yum help help > /dev/null 2>&1 && os_family='RedHat'
+    apt-get help > /dev/null 2>&1 && os_family='Debian'
+    echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
+    if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
+    if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
+    if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
