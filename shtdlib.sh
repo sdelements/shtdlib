@@ -216,7 +216,7 @@ function color_echo {
     fi
 }
 
-# Debug method for verbose debugging
+# Debug function for verbose debugging
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
@@ -226,6 +226,22 @@ function debug {
         else
             color_echo yellow "${*:2}" >&2
         fi
+    fi
+}
+
+# Error function for verbose explicit error messages
+# First argument is the priority, second is the log message
+# A priority of 0 will disable writing of errors to the syslog
+function error {
+    if whichs logger ; then
+        logger --priority "${1}" "${*:2}"
+    else
+        debug 3 "Unable to fing logger command to write to syslog"
+    fi
+    if [ -w "${init_tty}" ] ; then
+        color_echo red "${*:2}" > "${init_tty}"
+    else
+        color_echo red "${*:2}" >&2
     fi
 }
 
