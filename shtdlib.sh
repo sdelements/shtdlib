@@ -350,7 +350,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/${BASH_SOURCE[0]} && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/$(basename ${BASH_SOURCE[0]}) && ${*}"
         return 0
     fi
     return 1
@@ -964,9 +964,11 @@ function on_exit {
         fi
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
-    # Be a nice Unix citizen and propagate the signal
     trap - EXIT
-    kill -s EXIT ${$}
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s EXIT "${$}"
+    fi
 }
 
 function on_break {
@@ -983,7 +985,10 @@ function on_break {
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - "${1}"
-    kill -s "${1}" "${$}"
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s "${1}" "${$}"
+    fi
 }
 
 function add_on_exit {
