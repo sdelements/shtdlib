@@ -2403,7 +2403,7 @@ function load_missing_config {
             new_settings+=( "${setting}" )
         fi
     done
-    if [ -n "${new_settings[*]}" ] ; then
+    if [ -n "${new_settings[*]:-}" ] ; then
         debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
         load_config "${1}" "${new_settings[@]}"
     else
