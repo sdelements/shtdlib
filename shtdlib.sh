@@ -2367,6 +2367,7 @@ function load_missing_config {
         debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
         load_config "${1}" "${new_settings[@]}"
     else
+        #shellcheck disable=SC2145
         debug 5 "No missing settings to load, all specified settings already set for: ${@:2}"
     fi
 }
@@ -2578,6 +2579,7 @@ function test_signal_process {
 }
 
 # Test filesystem monitoring/event triggers
+# shellcheck disable=SC2120
 function test_add_on_mod {
     shopt_decorator_option_name='errexit'
     shopt_decorator_option_value='false'
@@ -2775,6 +2777,7 @@ function test_shtdlib {
     test_signal_process
 
     # Test filesystem object activity triggers
+    # shellcheck disable=SC2119
     test_add_on_mod
 
     # Test resolving domain names (IPv4)
