@@ -12,13 +12,19 @@ function import_or_source {
     # Import prevents the same source files from being imported multiple times
     # and preserves the order definition for variables and functions since they
     # don't get overwritten by subsequent imports.
+    local library="${1}"
+    shift
     if type -t import | grep -q '^function$' ; then
-        debug 10 "Importing ${1}"
-        import "${1}"
+        debug 10 "Trying to import ${library}"
+        import "${library}"
     else
-        debug 10 "Sourcing ${1}"
         # shellcheck disable=1090
-        source "${1}"
+        if [ -e "${library}" ] ; then
+            debug 10 "Trying to source ${library}"
+            source "${library}"
+        else
+            return 1
+        fi
     fi
 }
 
