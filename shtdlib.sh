@@ -239,7 +239,7 @@ function error {
         debug 3 "Unable to fing logger command to write to syslog"
     fi
     if [ -w "${init_tty}" ] ; then
-        color_echo red "${*:2}" >&2
+        color_echo red "${*:2}" > "${init_tty}"
     else
         color_echo red "${*:2}" >&2
     fi
