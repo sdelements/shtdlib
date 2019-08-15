@@ -350,7 +350,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/${BASH_SOURCE[0]} && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/$(basename ${BASH_SOURCE[0]}) && ${*}"
         return 0
     fi
     return 1
@@ -964,9 +964,11 @@ function on_exit {
         fi
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
-    # Be a nice Unix citizen and propagate the signal
     trap - EXIT
-    kill -s EXIT ${$}
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s EXIT "${$}"
+    fi
 }
 
 function on_break {
@@ -983,7 +985,10 @@ function on_break {
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - "${1}"
-    kill -s "${1}" "${$}"
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s "${1}" "${$}"
+    fi
 }
 
 function add_on_exit {
@@ -2332,16 +2337,17 @@ function load_config {
     config_file="${1}"
     # Verify config file permissions are correct and warn if they aren't
     # Dual stat commands to work with both linux and bsd
-    shift
     while read -r line; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
             setting_name="$(echo "${line}" | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-            if echo "${@}" | grep -q "${setting_name}" ; then
-                export "${setting_name}"="${setting_value}"
-                debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
-            fi
+            for requested_setting in "${@:2}" ; do
+                if [ "${requested_setting}" == "${setting_name}" ] ; then
+                    export "${setting_name}"="${setting_value}"
+                    debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
+                fi
+            done
         fi
     done < "${config_file}";
 }
@@ -2357,8 +2363,12 @@ function load_missing_config {
             new_settings+=( "${setting}" )
         fi
     done
-    debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
-    load_config "${1}" "${new_settings[*]}"
+    if [ -n "${new_settings[*]}" ] ; then
+        debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
+        load_config "${1}" "${new_settings[@]}"
+    else
+        debug 5 "No missing settings to load, all specified settings already set for: ${@:2}"
+    fi
 }
 
 # Make sure symlink exists and points to the correct target, will remove
