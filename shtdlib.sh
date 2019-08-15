@@ -500,6 +500,22 @@ function version_sort {
     _version_sort ${@} ${piped_versions[@]}
 }
 
+# Increment a version number by 1
+function version_increment {
+  declare -a segment=( ${1//\./ } )
+  declare new_version
+  declare -i carry=1
+
+  for (( n=${#segment[@]}-1; n>=0; n-=1 )); do
+    length=${#segment[n]}
+    new_version=$((segment[n]+carry))
+    [ "${#new_version}" -gt "${length}" ] && carry=1 || carry=0
+    [ "${n}" -gt 0 ] && segment[n]=${new_version: -length} || segment[n]=${new_version}
+  done
+  new_version="${segment[*]}"
+  echo -e "${new_version// /.}"
+}
+
 # Allows clear assert syntax
 function assert {
   debug 10 "Assertion made: ${*}"
@@ -662,29 +678,29 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 cleanup="${cleanup:-true}"
 
 # Create NSS Wrapper passwd and group files
-# Accepts 3 optional arguments, username, group and home directory
-# Defaults to bob, builders and a temporary directory
+# Accepts 4 optional arguments, uid:gid, username, group and home directory
+# Defaults to current uid/gid, bob, builders and a temporary directory
 # Note that if a home directory is specified and it's temporary it will need to
 # be removed/cleaned up by the code calling this function
 function init_nss_wrapper {
     umask_decorator_mask=${NSS_WRAPPED_FILE_MASK:-0002}
     umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
 
-    debug 8 'Initializing NSS Wrapper'
-    assert test -n "${BUILD_GUID}"
+    GUID="${1:-${GUID:-${UID:-$(id -u)}:$(id -g)}}"
+    debug 8 "Initializing NSS Wrapper with ${GUID}"
 
-    export TMP_USER="${1:-bob}"
-    export TMP_GROUP="${2:-builders}"
+    export TMP_USER="${2:-bob}"
+    export TMP_GROUP="${3:-builders}"
     # The ordering of -t and -d is important so this works on both BSD/OSX an
     # linux since template and -t have different meanings and syntaxes
     tmp_passwd_file="$(mktemp -t "passwd.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
     tmp_group_file="$(mktemp -t "group.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
     tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
 
-    if [ -n "${3:-}" ] ; then
-        TMP_HOME_PATH="${3}"
+    if [ -n "${4:-}" ] ; then
+        TMP_HOME_PATH="${4}"
     else
-        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}" &> /dev/null
     fi
     export TMP_HOME_PATH
 
@@ -692,8 +708,8 @@ function init_nss_wrapper {
     cat '/etc/passwd' > "${tmp_passwd_file}"
     cat '/etc/group' > "${tmp_group_file}"
     cat '/etc/hosts' > "${tmp_hosts_file}"
-    export BUID="${BUILD_GUID%:*}"
-    export BGID="${BUILD_GUID#*:}"
+    export BUID="${GUID%:*}"
+    export BGID="${GUID#*:}"
     passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${TMP_HOME_PATH}:/bin/false"
     group_string="${TMP_GROUP}:x:${BUID}:"
     passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
@@ -2367,6 +2383,7 @@ function load_missing_config {
         debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
         load_config "${1}" "${new_settings[@]}"
     else
+        #shellcheck disable=SC2145
         debug 5 "No missing settings to load, all specified settings already set for: ${@:2}"
     fi
 }
@@ -2578,7 +2595,13 @@ function test_signal_process {
 }
 
 # Test filesystem monitoring/event triggers
+# shellcheck disable=SC2120
 function test_add_on_mod {
+    shopt_decorator_option_name='errexit'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
     if ! ( whichs inotifywait || whichs fswatch ) ; then
         debug 4 "Unable to locate inotify or fswatch, trying to install them"
         install_package inotify-tools fswatch
@@ -2590,15 +2613,13 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        shopt_decorator_option_name='errexit'
-        shopt_decorator_option_value='false'
-        shopt_decorator wait "${signaler_pid}" &> /dev/null
+        wait "${signaler_pid}" &> /dev/null
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
@@ -2772,12 +2793,17 @@ function test_shtdlib {
     test_signal_process
 
     # Test filesystem object activity triggers
+    # shellcheck disable=SC2119
     test_add_on_mod
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 
     test_create_secure_tmp
+
+    # Test version increment
+    new_version=$(version_increment 12323.3.2)
+    assert [ "${new_version}" == '12323.3.3' ]
 }
 
 # Test bash version

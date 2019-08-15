@@ -32,7 +32,7 @@ function import_or_source {
 function download_lib {
     local tmp_path="${1:-$(mktemp)}"
     local lib_url="${2:-${default_base_download_url}/${default_library_name}}"
-    curl -s -l -o "${tmp_path}" "${lib_url}" || wget --no-verbose "${lib_url}" --output-document "${tmp_path}" || return 1
+    curl -s -l -o "${tmp_path}" "${lib_url}" || wget --no-verbose "${lib_url}" --output-document "${tmp_path}" || ( echo "Failed to download ${2}" && return 1)
 }
 
 # Library install function, optionallly accepts a URL and a full path/name
@@ -42,9 +42,9 @@ function install_lib {
     local lib_name="${2:-$(basename "${lib_path}")}"
     local tmp_path="${3:-$(mktemp)}"
 
-    echo "Attempting to install library ${lib_name} to ${lib_path}"
-    download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}"
-    mv "${tmp_path}" "${lib_path}" 2> /dev/null || sudo mv "${tmp_path}" "${lib_path}" 2> /dev/null || echo "Unable to install, reverting to one time use" && export lib_path="${tmp_path}"
+    echo "Installing library ${lib_name} to ${lib_path}"
+    download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}" || return 1
+    mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || lib_path="${tmp_path}"
     chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
     import_or_source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
