@@ -2590,7 +2590,7 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
