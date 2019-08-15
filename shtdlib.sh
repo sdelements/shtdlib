@@ -2367,6 +2367,7 @@ function load_missing_config {
         debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
         load_config "${1}" "${new_settings[@]}"
     else
+        #shellcheck disable=SC2145
         debug 5 "No missing settings to load, all specified settings already set for: ${@:2}"
     fi
 }
@@ -2578,7 +2579,13 @@ function test_signal_process {
 }
 
 # Test filesystem monitoring/event triggers
+# shellcheck disable=SC2120
 function test_add_on_mod {
+    shopt_decorator_option_name='errexit'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
     if ! ( whichs inotifywait || whichs fswatch ) ; then
         debug 4 "Unable to locate inotify or fswatch, trying to install them"
         install_package inotify-tools fswatch
@@ -2590,15 +2597,13 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        shopt_decorator_option_name='errexit'
-        shopt_decorator_option_value='false'
-        shopt_decorator wait "${signaler_pid}" &> /dev/null
+        wait "${signaler_pid}" &> /dev/null
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
@@ -2772,6 +2777,7 @@ function test_shtdlib {
     test_signal_process
 
     # Test filesystem object activity triggers
+    # shellcheck disable=SC2119
     test_add_on_mod
 
     # Test resolving domain names (IPv4)
