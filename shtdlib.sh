@@ -64,12 +64,20 @@ OS="${OS:-}"
 os_family='Unknown'
 os_name='Unknown'
 os_codename='Unknown'
-apt-get help > /dev/null 2>&1 && os_family='Debian'
-yum help help > /dev/null 2>&1 && os_family='RedHat'
-echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
-if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
-if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
-if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+# Preferred methods
+if [ -e '/etc/redhat-release' ] ; then
+    os_family='RedHat'
+elif [ -e '/etc/lsb-release' ] ; then
+    os_family='Debian'
+else
+    # Educated guesses
+    yum help help > /dev/null 2>&1 && os_family='RedHat'
+    apt-get help > /dev/null 2>&1 && os_family='Debian'
+    echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
+    if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
+    if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
+    if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
@@ -216,7 +224,7 @@ function color_echo {
     fi
 }
 
-# Debug method for verbose debugging
+# Debug function for verbose debugging
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
@@ -226,6 +234,22 @@ function debug {
         else
             color_echo yellow "${*:2}" >&2
         fi
+    fi
+}
+
+# Error function for verbose explicit error messages
+# First argument is the priority, second is the log message
+# A priority of 0 will disable writing of errors to the syslog
+function error {
+    if whichs logger ; then
+        logger --priority "${1}" "${*:2}"
+    else
+        debug 3 "Unable to fing logger command to write to syslog"
+    fi
+    if [ -w "${init_tty}" ] ; then
+        color_echo red "${*:2}" > "${init_tty}"
+    else
+        color_echo red "${*:2}" >&2
     fi
 }
 
@@ -350,7 +374,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/${BASH_SOURCE[0]} && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/$(basename ${BASH_SOURCE[0]}) && ${*}"
         return 0
     fi
     return 1
@@ -498,6 +522,22 @@ function version_sort {
     shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     # shellcheck disable=2068
     _version_sort ${@} ${piped_versions[@]}
+}
+
+# Increment a version number by 1
+function version_increment {
+  declare -a segment=( ${1//\./ } )
+  declare new_version
+  declare -i carry=1
+
+  for (( n=${#segment[@]}-1; n>=0; n-=1 )); do
+    length=${#segment[n]}
+    new_version=$((segment[n]+carry))
+    [ "${#new_version}" -gt "${length}" ] && carry=1 || carry=0
+    [ "${n}" -gt 0 ] && segment[n]=${new_version: -length} || segment[n]=${new_version}
+  done
+  new_version="${segment[*]}"
+  echo -e "${new_version// /.}"
 }
 
 # Allows clear assert syntax
@@ -662,29 +702,29 @@ run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 cleanup="${cleanup:-true}"
 
 # Create NSS Wrapper passwd and group files
-# Accepts 3 optional arguments, username, group and home directory
-# Defaults to bob, builders and a temporary directory
+# Accepts 4 optional arguments, uid:gid, username, group and home directory
+# Defaults to current uid/gid, bob, builders and a temporary directory
 # Note that if a home directory is specified and it's temporary it will need to
 # be removed/cleaned up by the code calling this function
 function init_nss_wrapper {
     umask_decorator_mask=${NSS_WRAPPED_FILE_MASK:-0002}
     umask_decorator "${FUNCNAME[0]}" "${@:-}" && return
 
-    debug 8 'Initializing NSS Wrapper'
-    assert test -n "${BUILD_GUID}"
+    GUID="${1:-${GUID:-${UID:-$(id -u)}:$(id -g)}}"
+    debug 8 "Initializing NSS Wrapper with ${GUID}"
 
-    export TMP_USER="${1:-bob}"
-    export TMP_GROUP="${2:-builders}"
+    export TMP_USER="${2:-bob}"
+    export TMP_GROUP="${3:-builders}"
     # The ordering of -t and -d is important so this works on both BSD/OSX an
     # linux since template and -t have different meanings and syntaxes
     tmp_passwd_file="$(mktemp -t "passwd.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_passwd_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_passwd_file}"
     tmp_group_file="$(mktemp -t "group.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_group_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_group_file}"
     tmp_hosts_file="$(mktemp -t "hosts.${$}.XXXXXXXXXX")" && add_on_exit "rm -f '${tmp_hosts_file}'" && chmod "${NSS_WRAPPED_FILE_PERM:-0664}" "${tmp_hosts_file}"
 
-    if [ -n "${3:-}" ] ; then
-        TMP_HOME_PATH="${3}"
+    if [ -n "${4:-}" ] ; then
+        TMP_HOME_PATH="${4}"
     else
-        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${BUILD_GUID}" "${TMP_HOME_PATH}"
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}" &> /dev/null
     fi
     export TMP_HOME_PATH
 
@@ -692,8 +732,8 @@ function init_nss_wrapper {
     cat '/etc/passwd' > "${tmp_passwd_file}"
     cat '/etc/group' > "${tmp_group_file}"
     cat '/etc/hosts' > "${tmp_hosts_file}"
-    export BUID="${BUILD_GUID%:*}"
-    export BGID="${BUILD_GUID#*:}"
+    export BUID="${GUID%:*}"
+    export BGID="${GUID#*:}"
     passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${TMP_HOME_PATH}:/bin/false"
     group_string="${TMP_GROUP}:x:${BUID}:"
     passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
@@ -964,9 +1004,11 @@ function on_exit {
         fi
     fi
     debug 10 "Finished cleaning up, de-registering signal trap"
-    # Be a nice Unix citizen and propagate the signal
     trap - EXIT
-    kill -s EXIT ${$}
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s EXIT "${$}"
+    fi
 }
 
 function on_break {
@@ -983,7 +1025,10 @@ function on_break {
     fi
     # Be a nice Unix citizen and propagate the signal
     trap - "${1}"
-    kill -s "${1}" "${$}"
+    if ! $interactive ; then
+        # Be a nice Unix citizen and propagate the signal
+        kill -s "${1}" "${$}"
+    fi
 }
 
 function add_on_exit {
@@ -2332,16 +2377,17 @@ function load_config {
     config_file="${1}"
     # Verify config file permissions are correct and warn if they aren't
     # Dual stat commands to work with both linux and bsd
-    shift
     while read -r line; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
             setting_name="$(echo "${line}" | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-            if echo "${@}" | grep -q "${setting_name}" ; then
-                export "${setting_name}"="${setting_value}"
-                debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
-            fi
+            for requested_setting in "${@:2}" ; do
+                if [ "${requested_setting}" == "${setting_name}" ] ; then
+                    export "${setting_name}"="${setting_value}"
+                    debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
+                fi
+            done
         fi
     done < "${config_file}";
 }
@@ -2358,10 +2404,11 @@ function load_missing_config {
         fi
     done
     if [ -n "${new_settings[*]:-}" ] ; then
-        debug 10 "Loading missing settings: ${new_settings[*]} from config file: '${1}'"
-        load_config "${1}" "${new_settings[*]}"
+        debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
+        load_config "${1}" "${new_settings[@]}"
     else
-    debug 10 'No missing settings matched/found'
+        #shellcheck disable=SC2145
+        debug 5 "No missing settings to load, all specified settings already set for: ${@:2}"
     fi
 }
 
@@ -2572,7 +2619,13 @@ function test_signal_process {
 }
 
 # Test filesystem monitoring/event triggers
+# shellcheck disable=SC2120
 function test_add_on_mod {
+    shopt_decorator_option_name='errexit'
+    shopt_decorator_option_value='false'
+    # shellcheck disable=2015
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+
     if ! ( whichs inotifywait || whichs fswatch ) ; then
         debug 4 "Unable to locate inotify or fswatch, trying to install them"
         install_package inotify-tools fswatch
@@ -2584,15 +2637,13 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
     bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        shopt_decorator_option_name='errexit'
-        shopt_decorator_option_value='false'
-        shopt_decorator wait "${signaler_pid}" &> /dev/null
+        wait "${signaler_pid}" &> /dev/null
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
@@ -2766,12 +2817,17 @@ function test_shtdlib {
     test_signal_process
 
     # Test filesystem object activity triggers
+    # shellcheck disable=SC2119
     test_add_on_mod
 
     # Test resolving domain names (IPv4)
     assert [ "$(resolve_domain_name example.com | grep -v '.*:.*:.*:.*:.*:.*:.*:.*')" == '93.184.216.34' ]
 
     test_create_secure_tmp
+
+    # Test version increment
+    new_version=$(version_increment 12323.3.2)
+    assert [ "${new_version}" == '12323.3.3' ]
 }
 
 # Test bash version
