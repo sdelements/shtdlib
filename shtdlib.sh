@@ -64,12 +64,20 @@ OS="${OS:-}"
 os_family='Unknown'
 os_name='Unknown'
 os_codename='Unknown'
-apt-get help > /dev/null 2>&1 && os_family='Debian'
-yum help help > /dev/null 2>&1 && os_family='RedHat'
-echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
-if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
-if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
-if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+# Preferred methods
+if [ -e '/etc/redhat-release' ] ; then
+    os_family='RedHat'
+elif [ -e '/etc/lsb-release' ] ; then
+    os_family='Debian'
+else
+    # Educated guesses
+    yum help help > /dev/null 2>&1 && os_family='RedHat'
+    apt-get help > /dev/null 2>&1 && os_family='Debian'
+    echo "${OSTYPE}" | grep -q 'darwin' && os_family='MacOSX'
+    if [ "${OS}" == 'SunOS' ]; then os_family='Solaris'; fi
+    if [ "${OSTYPE}" == 'cygwin' ]; then os_family='Cygwin'; fi
+    if [ -f '/etc/alpine-release' ] ; then os_family='Alpine'; fi
+fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
@@ -216,7 +224,7 @@ function color_echo {
     fi
 }
 
-# Debug method for verbose debugging
+# Debug function for verbose debugging
 # Note debug is special because it's safe even in subshells because it bypasses
 # the stdin/stdout and writes directly to the terminal
 function debug {
@@ -226,6 +234,22 @@ function debug {
         else
             color_echo yellow "${*:2}" >&2
         fi
+    fi
+}
+
+# Error function for verbose explicit error messages
+# First argument is the priority, second is the log message
+# A priority of 0 will disable writing of errors to the syslog
+function error {
+    if whichs logger ; then
+        logger --priority "${1}" "${*:2}"
+    else
+        debug 3 "Unable to fing logger command to write to syslog"
+    fi
+    if [ -w "${init_tty}" ] ; then
+        color_echo red "${*:2}" > "${init_tty}"
+    else
+        color_echo red "${*:2}" >&2
     fi
 }
 
@@ -2379,7 +2403,7 @@ function load_missing_config {
             new_settings+=( "${setting}" )
         fi
     done
-    if [ -n "${new_settings[*]}" ] ; then
+    if [ -n "${new_settings[*]:-}" ] ; then
         debug 10 "Attempting to load missing settings: ${new_settings[*]} from config file: '${1}'"
         load_config "${1}" "${new_settings[@]}"
     else
