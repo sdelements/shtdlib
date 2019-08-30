@@ -150,6 +150,25 @@ export cyan='\e[0;36m'
 export white='\e[0;37m'
 export blank='\e[0m' # No Color
 
+
+# Join/Copy/Rename associative array(s)
+# First argument is the name of the new array
+# Any subsequent argument is assumed to be an assosiative array which content
+# will be copied to the new array
+function create_associative_array {
+    new_array_name="${1}"
+    assert test -n "${2}" # At least one array name was provided
+    assert test -n "${new_array_name}" # A name was provided
+    declare -gA "${new_array_name}"
+    for array_name in "${@:2}" ; do
+        for key in $(eval 'echo ${!'"${array_name}"'[@]}') ; do
+            value="$(eval echo '${'${array_name}'['${key}']}')"
+            debug 10 "Setting key: ${key} in associative array: ${new_array_name} to: ${value}"
+            eval ${new_array_name}[${key}]=${value}
+        done
+    done
+}
+
 # Check if a variable is in array
 # First parameter is the variable, rest is the array
 function in_array {
