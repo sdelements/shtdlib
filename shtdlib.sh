@@ -82,7 +82,11 @@ os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
 if [ "${EUID}" == 0 ] && command -v virt-what &> /dev/null ; then
-    virt_platform="$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)"
+    if [ -f '/.dockerenv' ] ; then
+        virt_platform='Docker'
+    else
+        virt_platform="$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)"
+    fi
 else
     virt_platform="Unknown"
 fi
