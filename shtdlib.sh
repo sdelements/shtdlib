@@ -2389,6 +2389,16 @@ function trim {
     echo -n "${var}"
 }
 
+# Sort array elements, accepts name of array to sort, defaults  to unique sort
+# but can be configured by setting the sort_command
+function sort_array {
+    declare -ga "${1}"
+    local array_name="${1}"
+    local array_elements=( $(eval echo '${'"${array_name}"'[@]}') )
+    sort_command="${sort_command:-sort -u}"
+    readarray -t "${1}" < <(for element in "${array_elements[@]}"; do echo "${element}"; done | ${sort_command})
+}
+
 # Creates an associative array from an array of variable names setting the
 # values as the variable values.
 # Accepts the name of an array to expand and the name of the associative array
@@ -2404,7 +2414,7 @@ function associate_array {
     declare -gA "${new_array_name}"
 
     for key in "${array_elements[@]}" ; do
-        debug 10 "Processing ${key}"
+        debug 10 "Processing associate key: ${key}"
         if [ -n "${!key:-}" ] ; then
             debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
             eval ${new_array_name}[${key}]=${!key}
