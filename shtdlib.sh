@@ -2404,10 +2404,13 @@ function associate_array {
     declare -gA "${new_array_name}"
 
     for key in "${array_elements[@]}" ; do
-        if ! ${ignore_missing_associate_value:-false} ; then
-            assert test -n "${!key}" # A variable with key name must be set
+        debug 10 "Processing ${key}"
+        if [ -n "${!key}:-}" ] ; then
             debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
             eval ${new_array_name}[${key}]=${!key}
+        elif ! ${ignore_missing_associate_value:-false} ; then
+            error 0 "No variable found to be set with name ${key}"
+            exit_on_fail
         fi
     done
 }
