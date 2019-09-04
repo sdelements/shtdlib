@@ -2389,6 +2389,24 @@ function trim {
     echo -n "${var}"
 }
 
+# Creates an associative array from an array of variable names setting the
+# values as the variable values
+# Accepts the name of an array to expand and the name of the associative array
+# to be created.
+function associate_array {
+    local source_array_name="${1}"
+    local array_elements=( $(eval echo '${'"${source_array_name}"'[@]}') )
+    local new_array_name="${2}"
+    debug 10 "Creating associative array: ${new_array_name} from: ${source_array_name} with elements: ${array_elements[@]}"
+    declare -gA "${new_array_name}"
+
+    for key in "${array_elements[@]}" ; do
+        debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
+        assert test -n "${!key}" # A variable with key name must be set
+        eval ${new_array_name}[${key}]=${!key}
+    done
+}
+
 # Safely loads config file
 # First parameter is filename, all consequent parameters are assumed to be
 # valid configuration parameters
