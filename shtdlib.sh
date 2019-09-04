@@ -2390,9 +2390,12 @@ function trim {
 }
 
 # Creates an associative array from an array of variable names setting the
-# values as the variable values
+# values as the variable values.
 # Accepts the name of an array to expand and the name of the associative array
 # to be created.
+# Unset or empty variables will raise an error unless
+# ignore_missing_associate_value is set to true in which the key/value will be
+# skipped.
 function associate_array {
     local source_array_name="${1}"
     local array_elements=( $(eval echo '${'"${source_array_name}"'[@]}') )
@@ -2401,9 +2404,11 @@ function associate_array {
     declare -gA "${new_array_name}"
 
     for key in "${array_elements[@]}" ; do
-        debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
-        assert test -n "${!key}" # A variable with key name must be set
-        eval ${new_array_name}[${key}]=${!key}
+        if ! ${ignore_missing_associate_value:-false} ; then
+            assert test -n "${!key}" # A variable with key name must be set
+            debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
+            eval ${new_array_name}[${key}]=${!key}
+        fi
     done
 }
 
