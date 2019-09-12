@@ -1700,6 +1700,7 @@ function load_from_yaml {
         for key in "${@:3}" ; do
             ruby_yaml_parser+="[${key}]"
         done
+        assert whichs ruby
         ruby -w0 -ryaml -e "${ruby_yaml_parser}" "${1}" 2> /dev/null | awk '{print $1}' || return 1
         return 0
     else
