@@ -20,6 +20,7 @@ version='0.1'
 # Set a safe umask
 umask 0077
 
+DEV_MODE="${DEV_MODE:-false}"
 default_library_name='shtdlib.sh'
 default_base_download_url='https://raw.githubusercontent.com/sdelements/shtdlib/master'
 default_install_path='/usr/local/bin'
@@ -104,7 +105,7 @@ if ! whichs envsubst ; then
     color_echo cyan 'Perhaps this can be fixed with: apt-get -y install gettext-base'
     exit 1
 fi
-if ! whichs inotifywait ; then
+if ! whichs inotifywait && ${DEV_MODE} ; then
     color_echo red "Unable to locate the inotifywait command, please make sure it's available"
     color_echo cyan 'Perhaps this can be fixed with: apt-get install inotify-tools'
     exit 1
