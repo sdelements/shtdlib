@@ -398,7 +398,9 @@ function mirror_envsubst_paths {
             color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
-                add_on_sig "rm -f ${destination}${file#${full_path}}"
+                if [ "${DEV_MODE}" = true ] ; then
+                    add_on_sig "rm -f ${destination}${file#${full_path}}"
+                fi
                 if ${nofifo} ; then
                     render_file "${destination}" "${file}" "${full_path}"
                 else
@@ -407,20 +409,22 @@ function mirror_envsubst_paths {
             done
         fi
 
-        # Set up safe cleanup for directory structure (needs to be done in
-        # reverse order to ensure safety of operation without recursive rm
-        local index
-        for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
-            add_on_sig "rmdir ${destination}${directories[${index}]#${full_path}}"
-        done
+        if [ "${DEV_MODE}" = true ] ; then
+            # Set up safe cleanup for directory structure (needs to be done in
+            # reverse order to ensure safety of operation without recursive rm
+            local index
+            for (( index=${#directories[@]}-1 ; index>=0 ; index-- )) ; do
+                add_on_sig "rmdir ${destination}${directories[${index}]#${full_path}}"
+            done
 
-        # Run update loop and detach it
-        if ${daemonize} ; then
-            inotify_looper "${destination}" "${full_path}" &
-        else
-            inotify_looper "${destination}" "${full_path}" &
+            # Run update loop and detach it
+            if ${daemonize} ; then
+                inotify_looper "${destination}" "${full_path}" &
+            else
+                inotify_looper "${destination}" "${full_path}" &
+            fi
+            looper_pids+=( "${!}" )
         fi
-        looper_pids+=( "${!}" )
     done
     if ! ${daemonize} ; then
         debug 8 "Waiting for looper pids: ${looper_pids[*]}"
