@@ -797,10 +797,12 @@ function priv_esc_with_env {
 # Create and manage a custom ssh auth agent, socket and pid
 # Create a special ssh-agent for docker, accepts two optional
 # parameters/arguments, the location of the named socket and the pid file
+# Optionally accepts any number of ssh key files to import, these can include
+# wildcards.
 function get_custom_ssh_auth_agent {
     custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
     custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
-    ssh_key_file="${3:-}"
+    ssh_key_files="${3:-}"
     if [ -S "${custom_ssh_auth_socket_path}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
         color_echo cyan "Found custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${custom_ssh_auth_socket_path}"
@@ -822,12 +824,14 @@ function get_custom_ssh_auth_agent {
 
     color_echo cyan "Checking ssh-agent key status"
     assert whichs ssh-add
-    if [ -n "${ssh_key_file:-}" ] ; then
-       if ! ssh-add -l | grep -q "${ssh_key_file}" ; then
-           ssh-add "${ssh_key_file:-}" || exit_on_fail "Unable to load ssh key file ${ssh_key_file} into agent"
-       else
-           color_echo green "Key file: ${ssh_key_file} already loaded into custom ssh agent"
-       fi
+    if [ -n "${ssh_key_files:-}" ] ; then
+        for ssh_key_file in "${ssh_key_files}" ; do
+            if ! ssh-add -l | grep -q "${ssh_key_files}" ; then
+                ssh-add ${ssh_key_file:-} || exit_on_fail "Unable to load ssh key file ${ssh_key_file} into agent"
+            else
+                color_echo green "Key file: ${ssh_key_file} already loaded into custom ssh agent"
+            fi
+        done
     else
         if ! ssh-add -l -q &> /dev/null ; then
             color_echo green "No ssh key specified, loading default key"
