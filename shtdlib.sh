@@ -154,6 +154,25 @@ export cyan='\e[0;36m'
 export white='\e[0;37m'
 export blank='\e[0m' # No Color
 
+
+# Join/Copy/Rename associative array(s)
+# First argument is the name of the new array
+# Any subsequent argument is assumed to be an assosiative array which content
+# will be copied to the new array
+function create_associative_array {
+    new_array_name="${1}"
+    assert test -n "${2}" # At least one array name was provided
+    assert test -n "${new_array_name}" # A name was provided
+    declare -gA "${new_array_name}"
+    for array_name in "${@:2}" ; do
+        for key in $(eval 'echo ${!'"${array_name}"'[@]}') ; do
+            value="$(eval echo '${'${array_name}'['${key}']}')"
+            debug 10 "Setting key: ${key} in associative array: ${new_array_name} to: ${value}"
+            eval ${new_array_name}[${key}]=${value}
+        done
+    done
+}
+
 # Check if a variable is in array
 # First parameter is the variable, rest is the array
 function in_array {
@@ -798,31 +817,43 @@ function priv_esc_with_env {
 # Create a special ssh-agent for docker, accepts two optional
 # parameters/arguments, the location of the named socket and the pid file
 function get_custom_ssh_auth_agent {
-    docker_ssh_auth_socket_path="${1:-${HOME}/docker-ssh-agent}"
-    docker_ssh_auth_pid_file="${2:-${HOME}/.docker-ssh-agent.pid}"
-    if [ -S "${docker_ssh_auth_socket_path}" ] && pgrep -F ${docker_ssh_auth_pid_file} &> /dev/null ; then
-        color_echo cyan "Found docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
-        export SSH_AUTH_SOCK="${docker_ssh_auth_socket_path}"
-        if [ -f "${docker_ssh_auth_pid_file}" ] ; then
-            read -r SSH_AGENT_PID < "${docker_ssh_auth_pid_file}"
+    custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
+    custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
+    ssh_key_file="${3:-}"
+    if [ -S "${custom_ssh_auth_socket_path}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
+        color_echo cyan "Found custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
+        export SSH_AUTH_SOCK="${custom_ssh_auth_socket_path}"
+        if [ -f "${custom_ssh_auth_pid_file}" ] ; then
+            read -r SSH_AGENT_PID < "${custom_ssh_auth_pid_file}"
             export SSH_AGENT_PID
         fi
     else
-        color_echo cyan "Creating docker specific ssh-agent with socket: ${docker_ssh_auth_socket_path}"
+        color_echo cyan "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         assert whichs ssh-agent
-        if rm -f ${docker_ssh_auth_socket_path} ; then
-            eval $(ssh-agent -a ${docker_ssh_auth_socket_path})
-            echo "${SSH_AGENT_PID}" > "${docker_ssh_auth_pid_file}"
+        if rm -f ${custom_ssh_auth_socket_path} ; then
+            eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
+            echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
         else
-            color_echo red "Unable to reset/create named socket ${docker_ssh_auth_socket_path}, please verify path and permissions"
+            color_echo red "Unable to reset/create named socket ${custom_ssh_auth_socket_path}, please verify path and permissions"
             return 1
         fi
     fi
 
     color_echo cyan "Checking ssh-agent key status"
     assert whichs ssh-add
-    if ! ssh-add -l -q &> /dev/null ; then
-        ssh-add || exit_on_fail "Unable to load ssh key into agent"
+    if [ -n "${ssh_key_file:-}" ] ; then
+       if ! ssh-add -l | grep -q "${ssh_key_file}" ; then
+           ssh-add "${ssh_key_file:-}" || exit_on_fail "Unable to load ssh key file ${ssh_key_file} into agent"
+       else
+           color_echo green "Key file: ${ssh_key_file} already loaded into custom ssh agent"
+       fi
+    else
+        if ! ssh-add -l -q &> /dev/null ; then
+            color_echo green "No ssh key specified, loading default key"
+            ssh-add || exit_on_fail "Unable to load ssh key into agent"
+        else
+            color_echo green "Found existing ssh key in custom ssh agent, no key specified to load, skipping"
+        fi
     fi
     assert test -n "${SSH_AUTH_SOCK}"
 }
@@ -1685,6 +1716,7 @@ function load_from_yaml {
         for key in "${@:3}" ; do
             ruby_yaml_parser+="[${key}]"
         done
+        assert whichs ruby
         ruby -w0 -ryaml -e "${ruby_yaml_parser}" "${1}" 2> /dev/null | awk '{print $1}' || return 1
         return 0
     else
@@ -2372,6 +2404,42 @@ function trim {
     var="${var#"${var%%[![:space:]]*}"}"   # remove leading whitespace characters
     var="${var%"${var##*[![:space:]]}"}"   # remove trailing whitespace characters
     echo -n "${var}"
+}
+
+# Sort array elements, accepts name of array to sort, defaults  to unique sort
+# but can be configured by setting the sort_command
+function sort_array {
+    declare -ga "${1}"
+    local array_name="${1}"
+    local array_elements=( $(eval echo '${'"${array_name}"'[@]}') )
+    sort_command="${sort_command:-sort -u}"
+    readarray -t "${1}" < <(for element in "${array_elements[@]}"; do echo "${element}"; done | ${sort_command})
+}
+
+# Creates an associative array from an array of variable names setting the
+# values as the variable values.
+# Accepts the name of an array to expand and the name of the associative array
+# to be created.
+# Unset or empty variables will raise an error unless
+# ignore_missing_associate_value is set to true in which the key/value will be
+# skipped.
+function associate_array {
+    local source_array_name="${1}"
+    local array_elements=( $(eval echo '${'"${source_array_name}"'[@]}') )
+    local new_array_name="${2}"
+    debug 10 "Creating associative array: ${new_array_name} from: ${source_array_name} with elements: ${array_elements[@]}"
+    declare -gA "${new_array_name}"
+
+    for key in "${array_elements[@]}" ; do
+        debug 10 "Processing associate key: ${key}"
+        if [ -n "${!key:-}" ] ; then
+            debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
+            eval ${new_array_name}[${key}]=${!key}
+        elif ! ${ignore_missing_associate_value:-false} ; then
+            error 0 "No variable found to be set with name ${key}"
+            exit_on_fail
+        fi
+    done
 }
 
 # Safely loads config file
