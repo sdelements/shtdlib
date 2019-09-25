@@ -20,7 +20,7 @@ version='0.1'
 # Set a safe umask
 umask 0077
 
-DEV_MODE="${DEV_MODE:-false}"
+dev_mode="${DEV_MODE:-false}"
 default_library_name='shtdlib.sh'
 default_base_download_url='https://raw.githubusercontent.com/sdelements/shtdlib/master'
 default_install_path='/usr/local/bin'
@@ -105,7 +105,7 @@ if ! whichs envsubst ; then
     color_echo cyan 'Perhaps this can be fixed with: apt-get -y install gettext-base'
     exit 1
 fi
-if ! whichs inotifywait && ${DEV_MODE} ; then
+if ! whichs inotifywait && ${dev_mode} ; then
     color_echo red "Unable to locate the inotifywait command, please make sure it's available"
     color_echo cyan 'Perhaps this can be fixed with: apt-get install inotify-tools'
     exit 1
@@ -399,7 +399,7 @@ function mirror_envsubst_paths {
             color_echo magenta "Destination directory does not contain any files, no pipes created for ${full_path}!"
         else
             for file in "${files[@]:-}"; do
-                if [ "${DEV_MODE}" = true ] ; then
+                if ${dev_mode} ; then
                     add_on_sig "rm -f ${destination}${file#${full_path}}"
                 fi
                 if ${nofifo} ; then
@@ -410,7 +410,7 @@ function mirror_envsubst_paths {
             done
         fi
 
-        if [ "${DEV_MODE}" = true ] ; then
+        if ${dev_mode} ; then
             # Set up safe cleanup for directory structure (needs to be done in
             # reverse order to ensure safety of operation without recursive rm
             local index
