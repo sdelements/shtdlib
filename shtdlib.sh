@@ -2433,7 +2433,7 @@ function associate_array {
     local source_array_name="${1}"
     local array_elements=( $(eval echo '${'"${source_array_name}"'[@]}') )
     local new_array_name="${2}"
-    debug 10 "Creating associative array: ${new_array_name} from: ${source_array_name} with elements: ${array_elements[@]}"
+    debug 10 "Creating associative array: ${new_array_name} from: ${source_array_name} with elements: ${array_elements[*]}"
     declare -gA "${new_array_name}"
 
     for key in "${array_elements[@]}" ; do
