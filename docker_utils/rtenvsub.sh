@@ -354,9 +354,9 @@ function inotify_looper  {
 }
 
 
-# Mirrors given path(s) of directories and files to a destination path using named
-# pipes or files substituting environment variables found in files in realtime
-# Ignores filesystem objects that are neither files or directories
+# Mirrors given path(s) of directories, files and symlinks to a destination path
+# using name pipes or files substituting environment variables found in files in realtime
+# Ignores filesystem objects that are not files, directories or symlinks
 function mirror_envsubst_paths {
     declare -a sources
     destination="$(readlink -m "${1}")"
@@ -381,6 +381,7 @@ function mirror_envsubst_paths {
 
         mapfile -t directories < <(find "${full_path}" -mindepth 1 -type d -exec readlink -m {} \;)
         mapfile -t files < <(find "${full_path}" -type f -exec readlink -m {} \;)
+        mapfile -t links < <(find "${full_path}" -type l)
 
         # Create directory structure, check if destination is empty
         if [ -n "$(ls -A "${destination}")" ] && ! ${overlay} ; then
@@ -409,6 +410,14 @@ function mirror_envsubst_paths {
                 fi
             done
         fi
+
+        # Create symbolic links as needed and set up cleanup
+        for link in "${links[@]}" ; do
+            color_echo green "Processing symbolic link ${link}"
+            target="${destination}${link#${full_path}}"
+            ln --symbolic "$(readlink ${link})" "${target}"
+            add_on_sig "unlink ${target}"
+        done
 
         if ${dev_mode} ; then
             # Set up safe cleanup for directory structure (needs to be done in
