@@ -1916,19 +1916,38 @@ function uri_unparser {
 
 ## Uniform Resource Identifier (URI) Hostname to Fully Qualified Domain Name (FQDN)
 # Opportunistically resolves the hostname portion of a URI, and replaces it
-# with a FQDN using the hosts file, DNS servers, and search domains. If no match
-# is found, then uses the unresolved hostname of the original URI. Returns status
-# code 1 if URI fails to parse.
+# with a FQDN using the Name Service Switch (nsswitch) library hosts database.
+# If URI hostname resolves, or if no match is found, then it uses the unresolved
+# hostname of the original URI. Returns status code 1 if URI fails to parse.
 ## Example
 # $ uri_hostname_to_fqdn http://app:8080
 # http://app.example.com:8080
 function uri_hostname_to_fqdn {
     uri="${*}"
     uri_parser ${uri} || return 1
-    new_uri_host=$(getent hosts ${uri_host} | awk '{ print $2}')
-    uri_host=${new_uri_host:-${uri_host}}
-    new_uri=$(uri_unparser)
-    echo "${new_uri}"
+
+    local fqdns=$(getent hosts ${uri_host})
+
+    # If hostname exists in hosts library, return
+    if $(echo ${fqdns} | egrep -q "(^| )${uri_host}( |$)"); then
+        echo "${uri}"
+        return 0
+    fi
+
+    # If it doesn't exist, try appending the domains found under "search" in /etc/resolv.conf
+    local new_uri_host
+    local domain_names=($(grep -e "^search" /etc/resolv.conf))
+    for domain_name in "${domain_names[@]:1}"; do  # first element is "search", skip
+        new_uri_host="${uri_host}.${domain_name}"
+        if $(echo ${fqdns} | egrep -q "(^| )${new_uri_host}( |$)"); then
+            # Found a match, set it as the new URI host, and break out of the matrix
+            uri_host=${new_uri_host}
+            break
+        fi
+    done
+
+    # Unparse the URI and echo
+    uri_unparser
 }
 
 ## Strip all leading/trailing whitespaces
