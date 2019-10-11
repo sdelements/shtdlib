@@ -1914,6 +1914,43 @@ function uri_unparser {
     echo "${working_uri}"
 }
 
+## Uniform Resource Identifier (URI) Hostname to Fully Qualified Domain Name (FQDN)
+# Opportunistically resolves the hostname portion of a URI, and replaces it
+# with a FQDN using the Name Service Switch (nsswitch) library hosts database.
+# If URI hostname resolves, or if no match is found, then it uses the unresolved
+# hostname of the original URI. Returns status code 1 if URI fails to parse.
+## Example
+# $ uri_hostname_to_fqdn http://app:8080
+# http://app.example.com:8080
+function uri_hostname_to_fqdn {
+    uri="${*}"
+    uri_parser "${uri}" || return 1
+
+    local fqdnames
+    fqdnames=$(getent hosts "${uri_host}")
+
+    # If hostname exists in hosts library, return
+    if echo "${fqdnames}" | grep -E -q "(^| )${uri_host}( |$)"; then
+        echo "${uri}"
+        return 0
+    fi
+
+    # If it doesn't exist, try appending the domains found under "search" in /etc/resolv.conf
+    local new_uri_host
+    local domain_names=($(grep -e '^search' /etc/resolv.conf))
+    for domain_name in "${domain_names[@]:1}"; do  # first element is "search", skip
+        new_uri_host="${uri_host}.${domain_name}"
+        if echo "${fqdnames}" | grep -E -q "(^| )${new_uri_host}( |$)"; then
+            # Found a match, set it as the new URI host, and break out of the matrix
+            uri_host="${new_uri_host}"
+            break
+        fi
+    done
+
+    # Unparse the URI and echo
+    uri_unparser
+}
+
 ## Strip all leading/trailing whitespaces
 function strip_space {
     echo -n "${@}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
