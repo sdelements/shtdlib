@@ -1914,6 +1914,14 @@ function uri_unparser {
     echo "${working_uri}"
 }
 
+function uri_hostname_to_fqdn {
+    uri="${*}"
+    uri_parser ${uri}
+    new_uri_host=$(getent hosts ${uri_host} | awk '{ print $2}')
+    uri_host=${new_uri_host:-${uri_host}}
+    uri_unparser
+}
+
 ## Strip all leading/trailing whitespaces
 function strip_space {
     echo -n "${@}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
