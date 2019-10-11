@@ -1914,6 +1914,10 @@ function uri_unparser {
     echo "${working_uri}"
 }
 
+## Try to find and replace the hostname of a URI with the FQDN. Remains the same if it resolves, or
+## is unable to resolve.
+# $ uri_hostname_to_fqdn http://app:8080
+# http://app.example.com:8080
 function uri_hostname_to_fqdn {
     uri="${*}"
     uri_parser ${uri}
