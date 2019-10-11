@@ -1914,16 +1914,21 @@ function uri_unparser {
     echo "${working_uri}"
 }
 
-## Try to find and replace the hostname of a URI with the FQDN. Remains the same if it resolves, or
-## is unable to resolve.
+## Uniform Resource Identifier (URI) Hostname to Fully Qualified Domain Name (FQDN)
+# Opportunistically resolves the hostname portion of a URI, and replaces it
+# with a FQDN using the hosts file, DNS servers, and search domains. If no match
+# is found, then uses the unresolved hostname of the original URI. Returns status
+# code 1 if URI fails to parse.
+## Example
 # $ uri_hostname_to_fqdn http://app:8080
 # http://app.example.com:8080
 function uri_hostname_to_fqdn {
     uri="${*}"
-    uri_parser ${uri}
+    uri_parser ${uri} || return 1
     new_uri_host=$(getent hosts ${uri_host} | awk '{ print $2}')
     uri_host=${new_uri_host:-${uri_host}}
-    uri_unparser
+    new_uri=$(uri_unparser)
+    echo "${new_uri}"
 }
 
 ## Strip all leading/trailing whitespaces
