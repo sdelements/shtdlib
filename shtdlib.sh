@@ -1926,21 +1926,21 @@ function uri_hostname_to_fqdn {
     uri="${*}"
     uri_parser "${uri}" || return 1
 
-    local fqdns
-    fqdns=$(getent hosts "${uri_host}")
+    local fqdnames
+    fqdnames=$(getent hosts "${uri_host}")
 
     # If hostname exists in hosts library, return
-    if echo "${fqdns}" | grep -E -q "(^| )${uri_host}( |$)"; then
+    if echo "${fqdnames}" | grep -E -q "(^| )${uri_host}( |$)"; then
         echo "${uri}"
         return 0
     fi
 
     # If it doesn't exist, try appending the domains found under "search" in /etc/resolv.conf
     local new_uri_host
-    local domain_names=($(grep -e "^search" /etc/resolv.conf))
+    local domain_names=($(grep -e '^search' /etc/resolv.conf))
     for domain_name in "${domain_names[@]:1}"; do  # first element is "search", skip
         new_uri_host="${uri_host}.${domain_name}"
-        if echo "${fqdns}" | grep -E -q "(^| )${new_uri_host}( |$)"; then
+        if echo "${fqdnames}" | grep -E -q "(^| )${new_uri_host}( |$)"; then
             # Found a match, set it as the new URI host, and break out of the matrix
             uri_host="${new_uri_host}"
             break
