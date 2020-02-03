@@ -141,11 +141,24 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
-# Store local IP addresses (not localhost), if it is not virtualized using lxc or docker
+# Gets local IP addresses (excluding localhost)
+function get_local_ip_addresses {
+    local ip_addrs
+    ip_addrs=$( (
+        whichs ip && ip -4 addr show
+    ) || (
+        whichs ifconfig && ifconfig
+    ) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\" )
+    echo "${ip_addrs}" \
+    | grep -v 127. \
+    | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' \
+    | grep -Eo '([0-9]*\.){3}[0-9]*' \
+    | sort -u
+}
+
+# DEPRECATED: use function `get_local_ip_addresses`
 # shellcheck disable=SC2046
-if [ "${virt_platform}" != 'Docker' ]; then
-    local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
-fi
+local_ip_addresses="$(get_local_ip_addresses ||:)"
 
 # Color Constants
 export black='\e[0;30m'
