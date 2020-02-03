@@ -141,9 +141,8 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
-# Store local IP addresses (not localhost), if it is not virtualized in Docker
+# Store local IP addresses (not localhost), if it is not virtualized using lxc or docker
 # shellcheck disable=SC2046
-local_ip_addresses=''
 if [ "${virt_platform}" != 'Docker' ]; then
     local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
 fi
