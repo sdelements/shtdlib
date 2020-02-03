@@ -87,6 +87,9 @@ if [ "${EUID}" == 0 ] && command -v virt-what &> /dev/null ; then
     else
         virt_platform="$(virt-what | head -1 || if [[ ${?} -eq 141 ]]; then true; else exit ${?}; fi)"
     fi
+elif [ "${os_type}" == "Linux" ] && grep -Eq '/(lxc|docker)/[[:xdigit:]]{64}' /proc/self/cgroup; then
+    # A method of detecting if Docker is the virtual platform on Linux containers
+    virt_platform='Docker'
 else
     virt_platform="Unknown"
 fi
@@ -138,9 +141,11 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
-# Store local IP addresses (not localhost)
+# Store local IP addresses (not localhost), if it is not virtualized in Docker
 # shellcheck disable=SC2046
-local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
+if [ "${virt_platform}" != 'Docker' ]; then
+    local_ip_addresses="$( ( (whichs ip && ip -4 addr show) || (whichs ifconfig && ifconfig) || awk '/32 host/ { print "inet " f } {f=$2}' <<< \"$(</proc/net/fib_trie)\") | grep -v 127. | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | sort -u)"
+fi
 
 # Color Constants
 export black='\e[0;30m'
