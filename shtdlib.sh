@@ -144,20 +144,18 @@ fi
 # Gets local IP addresses (excluding localhost)
 function get_local_ip_addresses {
     local ip_addrs
-    ip_addrs=$((
-        whichs ip && ip -4 addr show
-    ) || (
-        whichs ifconfig && ifconfig
-    ) || (
-        awk '/32 host/ { print "inet " f } {f=$2}' <<< "$(</proc/net/fib_trie)"
-    ))
-    (
-        echo "${ip_addrs}" \
-        | grep -v 127. \
-        | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' \
-        | grep -Eo '([0-9]*\.){3}[0-9]*' \
-        | sort -u
-    ) ||:
+    ip_addrs=$(( whichs ip && ip -4 addr show ) || \
+               ( whichs ifconfig && ifconfig ) || \
+               ( awk '/32 host/ { print "inet " f } {f=$2}' <<< "$(</proc/net/fib_trie)" ))
+    ip_addrs="$( echo "${ip_addrs}" | \
+                 grep -v '127.' | \
+                 grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
+                 grep -Eo '([0-9]*\.){3}[0-9]*' | \
+                 sort -u )"
+    if [ -z "${ip_addrs}" ] ; then
+        return 1
+    fi
+    echo "${ip_addrs}"
 }
 
 # DEPRECATED: use function `get_local_ip_addresses`
