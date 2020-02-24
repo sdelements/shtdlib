@@ -793,6 +793,18 @@ function init_nss_wrapper {
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
 }
 
+function enable_scl_python {
+    assert [ "${os_name}" = "redhat" ]
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    python_version="${1:-36}"
+    short_version="$(echo "${python_version}" | tr -dc '0-9')"
+    shopt_decorator "${FUNCNAME[0]}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+    color_echo green "Enabling SCL environment for python version: ${python_version}"
+    source /opt/rh/python${short_version}/enable
+}
+
+
 
 #Set username not available (unattended run) if passwd record exists
 if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
