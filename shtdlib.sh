@@ -141,21 +141,26 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
-# Gets local IP addresses (excluding localhost)
+# Filters a stream of local addresses from inet adders formatted lines
+function filter_sort_local_ip_addresses {
+        grep -v '127.' | \
+        sort --version-sort --unique | \
+        grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
+        grep -Eo '([0-9]*\.){3}[0-9]*'
+}
+
+# Gets local IP addresses (excluding localhost) and prints one per line
 function get_local_ip_addresses {
-    local ip_addrs
-    ip_addrs=$(( whichs ip && ip -4 addr show ) || \
-               ( whichs ifconfig && ifconfig ) || \
-               ( awk '/32 host/ { print "inet " f } {f=$2}' <<< "$(</proc/net/fib_trie)" ))
-    ip_addrs="$( echo "${ip_addrs}" | \
-                 grep -v '127.' | \
-                 grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
-                 grep -Eo '([0-9]*\.){3}[0-9]*' | \
-                 sort -u )"
-    if [ -z "${ip_addrs}" ] ; then
-        return 1
+    local -a all_ipv4
+    local -a local_iv4
+    if whichs ip ; then
+        ip -4 addr show | filter_sort_local_ip_addresses
+    elif whichs ifconfig ; then
+        ifconfig | filter_sort_local_ip_addresses
+    else
+        $(awk '/32 host/ { print "inet " f } {f=$2}' </proc/net/fib_trie) | \
+            filter_sort_local_ip_addresses
     fi
-    echo "${ip_addrs}"
 }
 
 # DEPRECATED: use function `get_local_ip_addresses`
