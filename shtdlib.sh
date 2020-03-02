@@ -144,7 +144,7 @@ fi
 # Filters a stream of local addresses from inet adders formatted lines
 function filter_sort_local_ip_addresses {
         grep -v '127.' | \
-        sort --version-sort --unique | \
+        sort -Vu | \
         grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
         grep -Eo '([0-9]*\.){3}[0-9]*'
 }
