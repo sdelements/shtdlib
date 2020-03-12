@@ -798,7 +798,7 @@ function init_nss_wrapper {
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
 }
 
-# Enable Software Collections, allows multiple versions of the same RPMs to be
+# Enable a Python Software Collection, SCL allows multiple versions of the same RPMs to be
 # installed at the same time.
 function enable_scl_python {
     assert [ "${os_name}" = "redhat" ]
@@ -806,9 +806,11 @@ function enable_scl_python {
     shopt_decorator_option_value='false'
     python_version="${1}"
     short_version="$(echo "${python_version}" | tr -dc '0-9')"
+    python_enable_path="${2:-${PYTHON_ENABLE_PATH:-/opt/rh/python${short_version}/enable}}"
     shopt_decorator "${FUNCNAME[0]}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     color_echo green "Enabling SCL environment for python version: ${python_version}"
-    source /opt/rh/python${short_version}/enable
+    # shellcheck disable=SC1090
+    source "${python_enable_path}}"
 }
 
 #Set username not available (unattended run) if passwd record exists
