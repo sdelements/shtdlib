@@ -807,6 +807,7 @@ function enable_scl_python {
     python_version="${1}"
     short_version="$(echo "${python_version}" | tr -dc '0-9')"
     python_enable_path="${2:-${PYTHON_ENABLE_PATH:-/opt/rh/python${short_version}/enable}}"
+    # shellcheck disable=SC2015
     shopt_decorator "${FUNCNAME[0]}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     color_echo green "Enabling SCL environment for python version: ${python_version}"
     # shellcheck disable=SC1090
