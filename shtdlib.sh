@@ -141,21 +141,26 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
-# Gets local IP addresses (excluding localhost)
+# Filters a stream of local addresses from inet adders formatted lines
+function filter_sort_local_ip_addresses {
+        grep -v '127.' | \
+        sort -Vu | \
+        grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
+        grep -Eo '([0-9]*\.){3}[0-9]*'
+}
+
+# Gets local IP addresses (excluding localhost) and prints one per line
 function get_local_ip_addresses {
-    local ip_addrs
-    ip_addrs=$(( whichs ip && ip -4 addr show ) || \
-               ( whichs ifconfig && ifconfig ) || \
-               ( awk '/32 host/ { print "inet " f } {f=$2}' <<< "$(</proc/net/fib_trie)" ))
-    ip_addrs="$( echo "${ip_addrs}" | \
-                 grep -v '127.' | \
-                 grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
-                 grep -Eo '([0-9]*\.){3}[0-9]*' | \
-                 sort -u )"
-    if [ -z "${ip_addrs}" ] ; then
-        return 1
+    local -a all_ipv4
+    local -a local_iv4
+    if whichs ip ; then
+        ip -4 addr show | filter_sort_local_ip_addresses
+    elif whichs ifconfig ; then
+        ifconfig | filter_sort_local_ip_addresses
+    else
+        $(awk '/32 host/ { print "inet " f } {f=$2}' </proc/net/fib_trie) | \
+            filter_sort_local_ip_addresses
     fi
-    echo "${ip_addrs}"
 }
 
 # DEPRECATED: use function `get_local_ip_addresses`
@@ -792,6 +797,23 @@ function init_nss_wrapper {
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
 }
 
+# Enable a Python Software Collection, SCL allows multiple versions of the same RPMs to be
+# installed at the same time. Accepts one required argument, the version of
+# python to enable, this should be in the format '3.6'
+function enable_scl_python {
+    assert [ "${os_name}" = "redhat" ]
+    shopt_decorator_option_name='nounset'
+    shopt_decorator_option_value='false'
+    assert test -n "${1}"
+    python_version="${1}"
+    short_version="$(echo "${python_version}" | tr -dc '0-9')"
+    python_enable_path="${2:-${PYTHON_ENABLE_PATH:-/opt/rh/python${short_version}/enable}}"
+    # shellcheck disable=SC2015
+    shopt_decorator "${FUNCNAME[0]}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
+    color_echo green "Enabling SCL environment for python version: ${python_version}"
+    # shellcheck disable=SC1090
+    source "${python_enable_path}}"
+}
 
 #Set username not available (unattended run) if passwd record exists
 if [ -z "${USER:-}" ] && whoami &> /dev/null ; then

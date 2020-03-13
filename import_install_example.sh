@@ -44,8 +44,8 @@ function install_lib {
 
     echo "Installing library ${lib_name} to ${lib_path}"
     download_lib "${tmp_path}" "${default_base_download_url}/${lib_name}" || return 1
-    mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" || lib_path="${tmp_path}"
-    chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" || return 1
+    mv "${tmp_path}" "${lib_path}" || sudo mv "${tmp_path}" "${lib_path}" 2> /dev/null || lib_path="${tmp_path}"
+    chmod 755 "${lib_path}" || sudo chmod 755 "${lib_path}" 2> /dev/null || return 1
     import_or_source "${lib_path}"
     color_echo green "Installed ${lib_name} to ${lib_path} successfully"
 }
