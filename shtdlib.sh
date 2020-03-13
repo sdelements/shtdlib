@@ -799,7 +799,8 @@ function init_nss_wrapper {
 }
 
 # Enable a Python Software Collection, SCL allows multiple versions of the same RPMs to be
-# installed at the same time.
+# installed at the same time. Accepts one required argument, the version of
+# python to enable, this should be in the format '3.6'
 function enable_scl_python {
     assert [ "${os_name}" = "redhat" ]
     shopt_decorator_option_name='nounset'
