@@ -2732,6 +2732,7 @@ function tls_create_sign_cert {
 }
 
 # Creates a self signed cert/key pair if a cert does not exist in the path.
+# Requires two arguments, path to the key and cert to be created.
 # Optionally consumes COMMON_NAME variable and appends to CN attribute.
 function tls_create_self_signed_cert {
     assert whichs openssl
