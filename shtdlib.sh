@@ -2672,8 +2672,8 @@ tls_valid_days=${tls_valid_days:-3650}
 tls_key_type="${tls_key_type:-rsa:4096}"
 
 # Creates a Certificate Authority if one does not exist in the CA cert path.
-# Requires two arguments, paths to the key and certificate and key files.
-# Optionally consumes common_name variable and appends to CN attribute.
+# Requires two arguments, paths to the key and certificate files.
+# Optionally consumes COMMON_NAME variable and appends to CN attribute.
 function tls_create_cert_authority {
     assert whichs openssl
     ca_key_path="${1}"
