@@ -804,6 +804,7 @@ function enable_scl_python {
     assert [ "${os_name}" = "redhat" ]
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
+    assert test -n "${1}"
     python_version="${1}"
     short_version="$(echo "${python_version}" | tr -dc '0-9')"
     python_enable_path="${2:-${PYTHON_ENABLE_PATH:-/opt/rh/python${short_version}/enable}}"
