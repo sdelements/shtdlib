@@ -2688,6 +2688,64 @@ function manage_service {
     return 1
 }
 
+tls_common_cert_attrib="${tls_common_cert_attrib:-/C=ZZ/ST=None/L=None/O=None/OU=None}"
+tls_valid_days=${tls_valid_days:-3650}
+tls_key_type="${tls_key_type:-rsa:4096}"
+
+# Creates a Certificate Authority if one does not exist in the CA cert path.
+# Requires two arguments, paths to the key and certificate files.
+# Optionally consumes COMMON_NAME variable and appends to CN attribute.
+function tls_create_cert_authority {
+    assert whichs openssl
+    ca_key_path="${1}"
+    ca_cert_path="${2}"
+    common_name="${COMMON_NAME:-${HOSTNAME:-$(hostname --fqdn)}}"
+    assert test -n "${ca_cert_path}"
+    assert test -n "${ca_key_path}"
+    if ! [ -e "${ca_cert_path}" ] ; then
+        debug 8 "Creating CA: ${ca_cert_path} with key ${ca_key_path}"
+        openssl req -new -x509 -nodes -out "${ca_cert_path}" -keyout "${ca_key_path}" -subj "${tls_common_cert_attrib}/CN=${common_name}" -newkey "${tls_key_type}" -sha512 -days "${tls_valid_days}"
+    else
+        debug 8 "Certificate ${ca_cert_path} already exists, skipping!"
+    fi
+}
+
+# Creates a new key/certificate pair and signs the certificate with a CA if a
+# certificate does not already exist in the new cert path.
+# Requires four arguments, new key path, new cert path, CA key path and CA cert
+# path. Optionally consumes COMMON_NAME variable and appends to CN attribute
+function tls_create_sign_cert {
+    assert whichs openssl
+    new_key_path="${1}"
+    new_cert_path="${2}"
+    ca_key_path="${3}"
+    ca_cert_path="${4}"
+    common_name="${COMMON_NAME:-${HOSTNAME:-$(hostname --fqdn)}}"
+    assert test -n "${new_cert_path}"
+    assert test -n "${new_key_path}"
+    assert test -n "${ca_cert_path}" && test -r "${ca_cert_path}"
+    assert test -n "${ca_key_path}" && test -r "${ca_key_path}"
+    if ! [ -e "${new_cert_path}" ] ; then
+        openssl req -new -keyout "${new_key_path}" -nodes -newkey "${tls_key_type}" -subj "${tls_common_cert_attrib}/CN=${common_name}" | \
+            openssl x509 -req -CAkey "${ca_key_path}" -CA "${ca_cert_path}" -days "${tls_valid_days}" -set_serial "${RANDOM}" -sha512 -out "${new_cert_path}"
+    fi
+}
+
+# Creates a self signed cert/key pair if a cert does not exist in the path.
+# Requires two arguments, path to the key and cert to be created.
+# Optionally consumes COMMON_NAME variable and appends to CN attribute.
+function tls_create_self_signed_cert {
+    assert whichs openssl
+    new_key_path="${1}"
+    new_cert_path="${2}"
+    common_name="${COMMON_NAME:-${HOSTNAME:-$(hostname --fqdn)}}"
+    assert test -n "${new_cert_path}"
+    assert test -n "${new_key_path}"
+    openssl req -new -keyout "${new_key_path}" -nodes -newkey "${tls_key_type}" -subj "${tls_common_cert_attrib}/CN=${common_name}" -x509 -sha512 -days "${tls_valid_days}" -nodes -set_serial "${RANDOM}" -out "${new_cert_path}"
+}
+
+
+
 alias "mantrap"='color_echo green "************,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,**********///****************************************///,    .. .....**/////*,***//////////////////*/////////***
 > ,,,,,,,,,,,,,,,,,,,,,,,..,,,,,,,,,,********/////////////////////////////////////********************,,,**///////////////////,,**///////////////////////////*///
 > ,,,,,,************,,,,,,,,,,,,,......   .,*/**/*///////*//////////////////////////////******************,,,,**///////////////,,,**///////////////*//(//////////

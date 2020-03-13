@@ -6,7 +6,6 @@ Shell Standard Library
 Supported bash versions currently include the following though not all
 functions will be supported on all versions.
 
-- 3.1.23
 - 3.2.57
 - 4.0.44
 - 4.1.17
@@ -14,6 +13,8 @@ functions will be supported on all versions.
 - 4.3.48
 - 4.4.23
 - 5.0-beta
+
+Support for bash 3.1 has bene deprecated.
 
 
 ## Installation
@@ -64,5 +65,5 @@ git submodule update --recursive
 
 - specific bash version(s) and/or local
     ```bash
-    source shtdlib.sh && test_shtdlib 3.1.23 4.4.23 local
+    source shtdlib.sh && test_shtdlib 3.2.57 4.4.23 local
     ```
