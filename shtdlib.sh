@@ -408,8 +408,7 @@ function shopt_decorator {
 function test_decorator {
     # If not running in a container
     if [ "${FUNCNAME[0]}" != "${FUNCNAME[2]:-}" ] && ! grep -q docker /proc/1/cgroup 2> /dev/null ; then
-        default_bash_versions=( '3.1.23' \
-                                '3.2.57' \
+        default_bash_versions=( '3.2.57' \
                                 '4.0.44' \
                                 '4.1.17' \
                                 '4.2.53' \
