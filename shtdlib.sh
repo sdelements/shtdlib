@@ -2692,7 +2692,7 @@ function tls_create_cert_authority {
 # Creates a new key/certificate pair and signs the certificate with a CA if a
 # certificate does not already exist in the new cert path.
 # Requires four arguments, new key path, new cert path, CA key path and CA cert
-# path. Optionally consumes common_name variable and appends to CN attribute
+# path. Optionally consumes COMMON_NAME variable and appends to CN attribute
 function tls_create_sign_cert {
     assert whichs openssl
     new_key_path="${1}"
@@ -2711,7 +2711,7 @@ function tls_create_sign_cert {
 }
 
 # Creates a self signed cert/key pair if a cert does not exist in the path.
-# Optionally consumes common_name variable and appends to CN attribute.
+# Optionally consumes COMMON_NAME_variable and appends to CN attribute.
 function tls_create_self_signed_cert {
     assert whichs openssl
     new_key_path="${1}"
