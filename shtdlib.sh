@@ -2526,26 +2526,34 @@ function associate_array {
     done
 }
 
-# Safely loads config file
+# Safely loads config file or config from stdin
 # First parameter is filename, all consequent parameters are assumed to be
 # valid configuration parameters
 function load_config {
-    config_file="${1}"
-    # Verify config file permissions are correct and warn if they aren't
-    # Dual stat commands to work with both linux and bsd
-    while read -r line; do
+    # If first argument is a filename read it and pass it to the function
+    if [ -f "${1:-}" ]; then
+        cat "${1}" | load_config "${@:2}"
+        return
+    elif [ -t 0 ] ; then
+        color_echo red "No config filename provided or data on stdin, exiting"
+        return 1
+    fi
+
+    # First command needs to be read, this way any piped input goes to it
+    readarray config_file
+    for line in "${config_file[@]}"; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
             setting_name="$(echo "${line}" | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-            for requested_setting in "${@:2}" ; do
+            for requested_setting in "${@}" ; do
                 if [ "${requested_setting}" == "${setting_name}" ] ; then
                     export "${setting_name}"="${setting_value}"
                     debug 10 "Loaded config parameter ${setting_name} with value of '${setting_value}'"
                 fi
             done
         fi
-    done < "${config_file}";
+    done
 }
 
 # Load settings from config file if they have not been set already
