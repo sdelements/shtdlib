@@ -2206,7 +2206,7 @@ function create_relative_archive {
     done
 
     # shellcheck disable=SC2068
-    tar ${transformations[@]} ${verbose_flag} --${archive_operation} --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
+    tar ${transformations[@]} "${verbose_flag}" "--${archive_operation}" --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
 }
 
 # Given a filename it will sign the file with the default key
@@ -2529,14 +2529,20 @@ function associate_array {
 # Safely loads config file or config from stdin
 # First parameter is filename, all consequent parameters are assumed to be
 # valid configuration parameters
+# By default settings are printed when config is piped since variables set
+# would only live in a subshell, this can be changed using the "print_settings"
+# variable
 function load_config {
     # If first argument is a filename read it and pass it to the function
     if [ -f "${1:-}" ]; then
-        cat "${1}" | load_config "${@:2}"
+        print_settings='false'
+        load_config "${@:2}" < "${1}"
         return
     elif [ -t 0 ] ; then
         color_echo red "No config filename provided or data on stdin, exiting"
         return 1
+    else
+        print_settings="${print_settings:-true}"
     fi
 
     # First command needs to be read, this way any piped input goes to it
@@ -2554,6 +2560,13 @@ function load_config {
             done
         fi
     done
+
+    # Print settings if needed when piping
+    if ${print_settings}; then
+        for setting in "${@}"; do
+            echo "${setting}=${!setting}"
+        done
+    fi
 }
 
 # Load settings from config file if they have not been set already
