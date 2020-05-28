@@ -2206,7 +2206,7 @@ function create_relative_archive {
     done
 
     # shellcheck disable=SC2068
-    tar ${transformations[@]} "${verbose_flag}" "--${archive_operation}" --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
+    tar ${transformations[@]} ${verbose_flag} --${archive_operation} --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
 }
 
 # Given a filename it will sign the file with the default key
