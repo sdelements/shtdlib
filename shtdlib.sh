@@ -895,7 +895,7 @@ function get_custom_ssh_auth_agent {
             fi
         done
     else
-        if ! ssh-add -l -q &> /dev/null ; then
+        if ! ssh-add -l &> /dev/null ; then
             color_echo green "No ssh key specified, loading default key"
             ssh-add || exit_on_fail "Unable to load ssh key into agent"
         else
