@@ -2206,7 +2206,7 @@ function create_relative_archive {
     done
 
     # shellcheck disable=SC2068
-    tar ${transformations[@]} "${verbose_flag}" "--${archive_operation}" --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
+    tar ${transformations[@]} ${verbose_flag} --${archive_operation} --exclude-vcs --directory "${run_dir}" --file "${archive_path}" ${source_elements[@]} || exit_on_fail
 }
 
 # Given a filename it will sign the file with the default key
@@ -2249,6 +2249,7 @@ function get_git_status {
 
 # Reads bash files and inlines any "source" references to a new file
 # If second parameter is empty or "-" the new file is printed to stdout
+# Explicit inlines can be defined using "#inline_source path_to_file"
 declare -a processed_inline_sources=()
 function inline_bash_source {
     local inline_source_file="${1}"
@@ -2263,7 +2264,13 @@ function inline_bash_source {
     local i
     for (( i=1; i<lines+1; i++ )) ; do
         local filename
-        filename="$(echo "${source_file_array[${i}-1]}" | grep '^source ' | awk '{print $2}')"
+        filename="$(echo "${source_file_array[${i}-1]}" | grep -e '^source ' -e '^import ' -e '^import_lib' -e '^#inline_source ' | awk '{print $2}')"
+        debug 10 "Processing source file: ${filename}"
+        interpolated_filename="$(echo ${filename//\"} | envsubst)"
+        if [ "${filename}" != "${interpolated_filename}" ] ; then
+            color_echo red "Warning, environment variable found in source/import statement '${filename}', note that variable(s) need to be set/populated when inlining the source, cautiosly proceeding"
+            filename="${interpolated_filename}"
+        fi
         if [ "${filename}" != "" ] ; then
             debug 10 "Found line with source instruction to file: ${filename}"
             local relative_filename
