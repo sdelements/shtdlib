@@ -640,12 +640,9 @@ function finalize_path {
 }
 
 # Store full path to this script
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]] ; then
-    # This script is executed
-    script_full_path="${0}"
-else
-    # This script is sourced
-    script_full_path="$(pwd)"
+script_full_path="${0}"
+if [ ! -f "${script_full_path}" ] ; then
+     script_full_path="$(pwd)"
 fi
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
