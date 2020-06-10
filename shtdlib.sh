@@ -642,7 +642,7 @@ function finalize_path {
 # Store full path to this script
 script_full_path="${0}"
 if [ ! -f "${script_full_path}" ] ; then
-     script_full_path="$(pwd)"
+    script_full_path="$(pwd)"
 fi
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
