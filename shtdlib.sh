@@ -646,6 +646,8 @@ if [ ! -f "${script_full_path}" ] ; then
 fi
 finalize_path script_full_path
 run_dir="${run_dir:-$(dirname "${script_full_path}")}"
+debug 10 "Set 'script_full_path' to: ${script_full_path}"
+debug 10 "Set 'run_dir' to: ${run_dir}"
 
 # Allows checking of exit status, on error print debugging info and exit.
 # Takes an optional error message in which case only it will be shown
@@ -737,16 +739,10 @@ function print_version {
     fi
 }
 
-# Store full path to this script
-script_full_path="${0}"
-if [ ! -f "${script_full_path}" ] ; then
-    script_full_path="$(pwd)"
-fi
-finalize_path script_full_path
-run_dir="${run_dir:-$(dirname "${script_full_path}")}"
 
 # Default is to clean up after ourselves
 cleanup="${cleanup:-true}"
+
 
 # Create NSS Wrapper passwd and group files
 # Accepts 4 optional arguments, uid:gid, username, group and home directory
