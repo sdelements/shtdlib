@@ -2556,7 +2556,7 @@ function load_config {
     readarray config_file
     for line in "${config_file[@]}"; do
         if [[ "${line}" =~ ^[^#]*= ]]; then
-            setting_name="$(echo "${line}" | awk -F '=' '{print $1}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+            setting_name="$(echo "${line}" | cut -f 1 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
             setting_value="$(echo "${line}" | cut -f 2 -d '=' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
             for requested_setting in "${@}" ; do
