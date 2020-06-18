@@ -1381,10 +1381,15 @@ EOF
 # This is mostly irrelevant when running in strict mode
 function required_argument {
     print_usage_function="${3:-print_usage}"
-    if [ -z "${!1}" ]; then
-        ${print_usage_function}
-        color_echo red "${2}"
-        exit 255
+    if [ -n "${1:-}" ]; then
+        debug 10 "Processing required argument: ${1}"
+        if [ -z "${!1}" ]; then
+            ${print_usage_function}
+            color_echo red "${2}"
+            exit 255
+        else
+            debug 10 "Argument: ${1} set to: ${!1}"
+        fi
     fi
 }
 
