@@ -158,7 +158,7 @@ function get_local_ip_addresses {
     elif whichs ifconfig ; then
         ifconfig | filter_sort_local_ip_addresses
     else
-        $(awk '/32 host/ { print "inet " f } {f=$2}' </proc/net/fib_trie) | \
+        awk '/32 host/ { print "inet " f } {f=$2}' </proc/net/fib_trie | \
             filter_sort_local_ip_addresses
     fi
 }
