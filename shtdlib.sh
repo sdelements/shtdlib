@@ -2737,7 +2737,9 @@ function tls_create_self_signed_cert {
     common_name="${COMMON_NAME:-${HOSTNAME:-$(hostname --fqdn)}}"
     assert test -n "${new_cert_path}"
     assert test -n "${new_key_path}"
-    openssl req -new -keyout "${new_key_path}" -nodes -newkey "${tls_key_type}" -subj "${tls_common_cert_attrib}/CN=${common_name}" -x509 -sha512 -days "${tls_valid_days}" -nodes -set_serial "${RANDOM}" -out "${new_cert_path}"
+    if ! [ -e "${new_cert_path}" ] ; then
+        openssl req -new -keyout "${new_key_path}" -nodes -newkey "${tls_key_type}" -subj "${tls_common_cert_attrib}/CN=${common_name}" -x509 -sha512 -days "${tls_valid_days}" -nodes -set_serial "${RANDOM}" -out "${new_cert_path}"
+    fi
 }
 
 
