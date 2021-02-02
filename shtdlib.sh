@@ -141,6 +141,23 @@ elif [ "${os_family}" == 'Alpine' ]; then
     os_name='alpine'
 fi
 
+# Encode the given string
+# We encode by substituting the hex unicode of special characters
+function url_encode {
+    local url_length=${#1}
+    for ((i=0 ; i<url_length ; i++)); do
+        char=${1:i:1}
+        case "${char}" in
+            [a-zA-Z0-9.~_-])
+                printf "${char}" ;;
+            ' ')
+                printf + ;;
+            *)
+                printf %%%X "'${char}" ;;
+        esac
+    done
+}
+
 # Filters a stream of local addresses from inet adders formatted lines
 function filter_sort_local_ip_addresses {
         grep -v '127.' | \
