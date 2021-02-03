@@ -415,7 +415,7 @@ function mirror_envsubst_paths {
         for link in "${links[@]}" ; do
             color_echo green "Processing symbolic link ${link}"
             target="${destination}${link#${full_path}}"
-            ln --symbolic "$(readlink "${link}")" "${target}"
+            ln --symbolic "$(readlink ${link})" "${target}"
             add_on_sig "unlink ${target}"
         done
 
