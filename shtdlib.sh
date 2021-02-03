@@ -149,7 +149,7 @@ function url_encode {
         char=${1:i:1}
         case "${char}" in
             [a-zA-Z0-9.~_-])
-                printf "${char}" ;;
+                printf "%s" "${char}" ;;
             ' ')
                 printf + ;;
             *)
@@ -208,9 +208,9 @@ function create_associative_array {
     declare -gA "${new_array_name}"
     for array_name in "${@:2}" ; do
         for key in $(eval 'echo ${!'"${array_name}"'[@]}') ; do
-            value="$(eval echo '${'${array_name}'['${key}']}')"
+            value="$(eval echo '${'"${array_name}"'['"${key}"']}')"
             debug 10 "Setting key: ${key} in associative array: ${new_array_name} to: ${value}"
-            eval ${new_array_name}[${key}]=${value}
+            eval "${new_array_name}"["${key}"]="${value}"
         done
     done
 }
@@ -438,7 +438,7 @@ function test_decorator {
                                 '4.4.23' \
                                 '5.0-beta' )
         supported_bash_versions=( ${supported_bash_versions[@]:-"${default_bash_versions[@]}"} )
-        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/$(basename ${BASH_SOURCE[0]}) && ${*}"
+        verbosity="${verbosity:-}" bash_images="${supported_bash_versions[*]}" bashtester/run.sh ". /code/""$(basename "${BASH_SOURCE[0]}")" && "${*}"
         return 0
     fi
     return 1
@@ -876,7 +876,7 @@ function get_custom_ssh_auth_agent {
     custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
     custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
     ssh_key_files=( ${@:3} )
-    if [ -S "${custom_ssh_auth_socket_path}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
+    if [ -S "${custom_ssh_auth_socket_path}" ] && pgrep -F "${custom_ssh_auth_pid_file}" &> /dev/null ; then
         color_echo cyan "Found custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${custom_ssh_auth_socket_path}"
         if [ -f "${custom_ssh_auth_pid_file}" ] ; then
@@ -886,8 +886,8 @@ function get_custom_ssh_auth_agent {
     else
         color_echo cyan "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         assert whichs ssh-agent
-        if rm -f ${custom_ssh_auth_socket_path} ; then
-            eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
+        if rm -f "${custom_ssh_auth_socket_path}" ; then
+            eval "$(ssh-agent -a "${custom_ssh_auth_socket_path}")"
             echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
         else
             color_echo red "Unable to reset/create named socket ${custom_ssh_auth_socket_path}, please verify path and permissions"
@@ -902,7 +902,7 @@ function get_custom_ssh_auth_agent {
         for ssh_key_file in "${ssh_key_files[@]}" ; do
             debug 10 "Processing ssh key file: ${ssh_key_file}"
             if ! ssh-add -l | grep -q "${ssh_key_file}" ; then
-                ssh-add ${ssh_key_file:-} || exit_on_fail "Unable to load ssh key file ${ssh_key_file} into agent"
+                ssh-add "${ssh_key_file:-}" || exit_on_fail "Unable to load ssh key file ${ssh_key_file} into agent"
             else
                 color_echo green "Key file: ${ssh_key_file} already loaded into custom ssh agent"
             fi
@@ -2531,7 +2531,7 @@ function associate_array {
         debug 10 "Processing associate key: ${key}"
         if [ -n "${!key:-}" ] ; then
             debug 10 "Setting ${new_array_name}[${key}] to ${!key}"
-            eval ${new_array_name}[${key}]=${!key}
+            eval "${new_array_name}"["${key}"]="${!key}"
         elif ! ${ignore_missing_associate_value:-false} ; then
             error 0 "No variable found to be set with name ${key}"
             exit_on_fail
