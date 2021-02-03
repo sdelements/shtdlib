@@ -207,10 +207,10 @@ function create_associative_array {
     assert test -n "${new_array_name}" # A name was provided
     declare -gA "${new_array_name}"
     for array_name in "${@:2}" ; do
-        for key in $(eval 'echo ${!'${array_name}'[@]}') ; do
+        for key in $(eval 'echo ${!'"${array_name}"'[@]}') ; do
             value="$(eval echo '${'${array_name}'['${key}']}')"
             debug 10 "Setting key: ${key} in associative array: ${new_array_name} to: ${value}"
-            eval "${new_array_name}"["${key}"]="${value}"
+            eval ${new_array_name}[${key}]=${value}
         done
     done
 }
