@@ -876,10 +876,10 @@ function get_custom_ssh_auth_agent {
     custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
     custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
     ssh_key_files=( ${@:3} )
-    if [ -S "${custom_ssh_auth_socket_path}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
+    if [ -S "${custom_ssh_auth_socket_path}" ] ; then
         color_echo cyan "Found custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${custom_ssh_auth_socket_path}"
-        if [ -f "${custom_ssh_auth_pid_file}" ] ; then
+        if [ -f "${custom_ssh_auth_pid_file}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
             read -r SSH_AGENT_PID < "${custom_ssh_auth_pid_file}"
             export SSH_AGENT_PID
         fi
