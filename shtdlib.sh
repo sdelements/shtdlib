@@ -867,6 +867,24 @@ function priv_esc_with_env {
     return ${?}
 }
 
+
+function create_custom_ssh_agent {
+    custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
+    custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
+    if [[ "${virt_platform}" != "Docker" ]]; then
+        echo "virtual platform is not docker"
+        color_echo cyan "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
+        assert whichs ssh-agent
+        if rm -f ${custom_ssh_auth_socket_path} ; then
+            eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
+            echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
+        else
+            color_echo red "Unable to reset/create named socket ${custom_ssh_auth_socket_path}, please verify path and permissions"
+            return 1
+        fi
+    fi
+}
+
 # Create and manage a custom ssh auth agent, socket and pid
 # Create a special ssh-agent for docker, accepts two optional
 # parameters/arguments, the location of the named socket and the pid file
@@ -882,17 +900,11 @@ function get_custom_ssh_auth_agent {
         if [ -f "${custom_ssh_auth_pid_file}" ] && pgrep -F ${custom_ssh_auth_pid_file} &> /dev/null ; then
             read -r SSH_AGENT_PID < "${custom_ssh_auth_pid_file}"
             export SSH_AGENT_PID
+        else
+            create_custom_ssh_agent "${custom_ssh_auth_socket_path}" "${custom_ssh_auth_pid_file}"
         fi
     else
-        color_echo cyan "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
-        assert whichs ssh-agent
-        if rm -f ${custom_ssh_auth_socket_path} ; then
-            eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
-            echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
-        else
-            color_echo red "Unable to reset/create named socket ${custom_ssh_auth_socket_path}, please verify path and permissions"
-            return 1
-        fi
+        create_custom_ssh_agent "${custom_ssh_auth_socket_path}" "${custom_ssh_auth_pid_file}"
     fi
 
     color_echo cyan "Checking ssh-agent key status"
