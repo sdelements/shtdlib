@@ -801,25 +801,20 @@ function init_nss_wrapper {
     group_name_pattern="^${TMP_GROUP}"':x:.*:.*$'
     group_pattern='^.*:x:'"${BGID}"':.*$'
 
-    if grep -qE "${passwd_name_pattern}" "${tmp_passwd_file}"; then
+    if grep --extended-regexp --quiet "${passwd_name_pattern}" "${tmp_passwd_file}" \
+    || grep --extended-regexp --quiet "${passwd_pattern}" "${tmp_passwd_file}"; then
       sed -i "s|${passwd_pattern}||g" "${tmp_passwd_file}"
-      sed -i "s|${passwd_name_pattern}|${passwd_string}|g" "${tmp_passwd_file}"
-    elif grep -qE "${passwd_pattern}" "${tmp_passwd_file}"; then
       sed -i "s|${passwd_name_pattern}||g" "${tmp_passwd_file}"
-      sed -i "s|${passwd_pattern}|${passwd_string}|g" "${tmp_passwd_file}"
-    else
-      echo "${passwd_string}" >> "${tmp_passwd_file}"
     fi
 
-    if grep -qE "${group_name_pattern}" "${tmp_group_file}"; then
+    if grep --extended-regexp --quiet "${group_name_pattern}" "${tmp_group_file}" \
+    || grep --extended-regexp --quiet "${group_pattern}" "${tmp_group_file}"; then
       sed -i "s|${group_pattern}||g" "${tmp_group_file}"
-      sed -i "s|${group_name_pattern}|${group_string}|g" "${tmp_group_file}"
-    elif grep -qE "${group_pattern}" "${tmp_group_file}"; then
       sed -i "s|${group_name_pattern}||g" "${tmp_group_file}"
-      sed -i "s|${group_pattern}|${group_string}|g" "${tmp_group_file}"
-    else
-      echo "${group_string}" >> "${tmp_group_file}"
     fi
+
+    echo "${passwd_string}" >> "${tmp_passwd_file}"
+    echo "${group_string}" >> "${tmp_group_file}"
 
     so_path="$(find / -name "libnss_wrapper.so" | head -n 1)"
     export LD_PRELOAD="${so_path}"
