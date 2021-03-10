@@ -872,17 +872,18 @@ function priv_esc_with_env {
 function create_custom_ssh_agent {
     custom_ssh_auth_socket_path="${1:-${HOME}/custom-ssh-agent}"
     custom_ssh_auth_pid_file="${2:-${HOME}/.custom-ssh-agent.pid}"
-    assert test -n "${virt_platform}"
-    if [[ "${virt_platform}" != 'Docker' ]]; then
+    if [[ "${virt_platform:-}" != 'Docker' ]]; then
         debug 10 "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         assert whichs ssh-agent
-        if rm -f "${custom_ssh_auth_socket_path}" ; then
+        if rm --force "${custom_ssh_auth_socket_path}" ; then
             eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
             echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
         else
             color_echo red "Unable to reset/create named socket ${custom_ssh_auth_socket_path}, please verify path and permissions"
             return 1
         fi
+    else
+        color_echo green "Virtual platform is Docker, skipping"
     fi
 }
 
