@@ -801,14 +801,14 @@ function init_nss_wrapper {
     group_name_pattern="^${TMP_GROUP}"':x:.*:.*$'
     group_pattern='^.*:x:'"${BGID}"':.*$'
 
-    if grep --extended-regexp --quiet "${passwd_name_pattern}" "${tmp_passwd_file}" \
-    || grep --extended-regexp --quiet "${passwd_pattern}" "${tmp_passwd_file}"; then
+    if grep -Eq  "${passwd_name_pattern}" "${tmp_passwd_file}" \
+    || grep -Eq "${passwd_pattern}" "${tmp_passwd_file}"; then
       sed -i "s|${passwd_pattern}||g" "${tmp_passwd_file}"
       sed -i "s|${passwd_name_pattern}||g" "${tmp_passwd_file}"
     fi
 
-    if grep --extended-regexp --quiet "${group_name_pattern}" "${tmp_group_file}" \
-    || grep --extended-regexp --quiet "${group_pattern}" "${tmp_group_file}"; then
+    if grep -Eq "${group_name_pattern}" "${tmp_group_file}" \
+    || grep -Eq "${group_pattern}" "${tmp_group_file}"; then
       sed -i "s|${group_pattern}||g" "${tmp_group_file}"
       sed -i "s|${group_name_pattern}||g" "${tmp_group_file}"
     fi
