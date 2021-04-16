@@ -796,19 +796,33 @@ function init_nss_wrapper {
     export BGID="${GUID#*:}"
     passwd_string="${TMP_USER}:x:${BUID}:${BGID}:Bob the builder:${TMP_HOME_PATH}:/bin/false"
     group_string="${TMP_GROUP}:x:${BUID}:"
-    passwd_pattern=".*:x:${BUID}:.*:.*:.*:.*"
-    group_pattern=".*:x:${BGID}:.*"
+    passwd_name_pattern='^'"${TMP_USER}"':x:.*:.*:.*:.*:.*$'
+    passwd_pattern='^.*:x:'"${BUID}"':.*:.*:.*:.*$'
+    group_name_pattern="^${TMP_GROUP}"':x:.*:.*$'
+    group_pattern='^.*:x:'"${BGID}"':.*$'
 
-    sed -i "s|.*:x:${BUID}:.*:.*:.*:.*|${passwd_string}|g" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
-    sed -i "s|.*:x:${BGID}:.*|${group_string}|g" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
-    sed -i "/${passwd_pattern}/!{q42}; {s|${passwd_pattern}|${passwd_string}|g}" "${tmp_passwd_file}" || echo "${passwd_string}" >> "${tmp_passwd_file}"
-    sed -i "/${group_pattern}/!{q42}; {s|${group_pattern}|${group_string}|g}" "${tmp_group_file}" || echo "${group_string}" >> "${tmp_group_file}"
+    if grep -Eq  "${passwd_name_pattern}" "${tmp_passwd_file}" \
+    || grep -Eq "${passwd_pattern}" "${tmp_passwd_file}"; then
+      sed -i "s|${passwd_pattern}||g" "${tmp_passwd_file}"
+      sed -i "s|${passwd_name_pattern}||g" "${tmp_passwd_file}"
+    fi
 
-    export LD_PRELOAD='libnss_wrapper.so'
+    if grep -Eq "${group_name_pattern}" "${tmp_group_file}" \
+    || grep -Eq "${group_pattern}" "${tmp_group_file}"; then
+      sed -i "s|${group_pattern}||g" "${tmp_group_file}"
+      sed -i "s|${group_name_pattern}||g" "${tmp_group_file}"
+    fi
+
+    echo "${passwd_string}" >> "${tmp_passwd_file}"
+    echo "${group_string}" >> "${tmp_group_file}"
+
+    so_path="$(find / -name "libnss_wrapper.so" | head -n 1)"
+    export LD_PRELOAD="${so_path}"
     export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
     export NSS_WRAPPER_GROUP="${tmp_group_file}"
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
 }
+
 
 # Enable a Python Software Collection, SCL allows multiple versions of the same RPMs to be
 # installed at the same time. Accepts one required argument, the version of
@@ -1001,7 +1015,7 @@ function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
     # shellcheck disable=2015
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator" 
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
                                    --event modify
