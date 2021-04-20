@@ -816,11 +816,15 @@ function init_nss_wrapper {
     echo "${passwd_string}" >> "${tmp_passwd_file}"
     echo "${group_string}" >> "${tmp_group_file}"
 
-    so_path="$(find / -name "libnss_wrapper.so" | head -n 1)"
+    so_path="$(find / -name "libnss_wrapper.so" 2>/dev/null | head -n 1)"
     export LD_PRELOAD="${so_path}"
     export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
     export NSS_WRAPPER_GROUP="${tmp_group_file}"
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
+    echo "temppasswdfile"
+    cat ${tmp_passwd_file}
+    echo "tempgroupfile"
+    cat ${tmp_group_file}
 }
 
 
