@@ -825,6 +825,9 @@ function init_nss_wrapper {
     cat ${tmp_passwd_file}
     echo "tempgroupfile"
     cat ${tmp_group_file}
+    id -u
+    id -g
+    whoami
 }
 
 
