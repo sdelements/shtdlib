@@ -808,6 +808,10 @@ function init_nss_wrapper {
     export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
     export NSS_WRAPPER_GROUP="${tmp_group_file}"
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
+    cat ${tmp_passwd_file}
+    cat ${tmp_group_file}
+    whoami
+    id -u
 }
 
 # Enable a Python Software Collection, SCL allows multiple versions of the same RPMs to be
@@ -1001,7 +1005,7 @@ function add_on_mod {
     shopt_decorator_option_name='nounset'
     shopt_decorator_option_value='false'
     # shellcheck disable=2015
-    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator" 
+    shopt_decorator "${FUNCNAME[0]}" "${@:-}" && return || conditional_exit_on_fail 121 "Failed to run ${FUNCNAME[0]} with shopt_decorator"
     if whichs inotifywait ; then
         file_monitor_command="inotifywait --monitor --recursive --format %w%f
                                    --event modify
