@@ -809,9 +809,7 @@ function init_nss_wrapper {
     echo "${passwd_string}" >> "${tmp_passwd_file}"
     echo "${group_string}" >> "${tmp_group_file}"
 
-    search_paths=($(ldconfig -v 2>/dev/null | grep -v ^$'\t' | tr -d ':'))
-    so_path="$(find "${search_paths[@]}" -name "libnss_wrapper.so" 2>/dev/null | head -n 1)"
-    export LD_PRELOAD="${so_path}"
+    export LD_PRELOAD="libnss_wrapper.so"
     export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
     export NSS_WRAPPER_GROUP="${tmp_group_file}"
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
