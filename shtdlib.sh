@@ -801,23 +801,15 @@ function init_nss_wrapper {
     group_name_pattern="^${TMP_GROUP}"':x:.*:.*$'
     group_pattern='^.*:x:'"${BGID}"':.*$'
 
-    if grep -Eq  "${passwd_name_pattern}" "${tmp_passwd_file}" \
-    || grep -Eq "${passwd_pattern}" "${tmp_passwd_file}"; then
-      sed -i "s|${passwd_pattern}||g" "${tmp_passwd_file}"
-      sed -i "s|${passwd_name_pattern}||g" "${tmp_passwd_file}"
-    fi
-
-    if grep -Eq "${group_name_pattern}" "${tmp_group_file}" \
-    || grep -Eq "${group_pattern}" "${tmp_group_file}"; then
-      sed -i "s|${group_pattern}||g" "${tmp_group_file}"
-      sed -i "s|${group_name_pattern}||g" "${tmp_group_file}"
-    fi
+    sed -i "s|${passwd_pattern}||g" "${tmp_passwd_file}"
+    sed -i "s|${passwd_name_pattern}||g" "${tmp_passwd_file}"
+    sed -i "s|${group_pattern}||g" "${tmp_group_file}"
+    sed -i "s|${group_name_pattern}||g" "${tmp_group_file}"
 
     echo "${passwd_string}" >> "${tmp_passwd_file}"
     echo "${group_string}" >> "${tmp_group_file}"
 
-    so_path="$(find / -name "libnss_wrapper.so" | head -n 1)"
-    export LD_PRELOAD="${so_path}"
+    export LD_PRELOAD="libnss_wrapper.so"
     export NSS_WRAPPER_PASSWD="${tmp_passwd_file}"
     export NSS_WRAPPER_GROUP="${tmp_group_file}"
     export NSS_WRAPPER_HOSTS="${tmp_hosts_file}"
