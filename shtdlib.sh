@@ -881,7 +881,7 @@ function create_custom_ssh_agent {
     if [[ "${virt_platform:-}" != 'Docker' ]]; then
         debug 10 "Creating custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         assert whichs ssh-agent
-        if rm --force "${custom_ssh_auth_socket_path}" ; then
+        if rm -Rf "${custom_ssh_auth_socket_path}" ; then
             eval $(ssh-agent -a ${custom_ssh_auth_socket_path})
             echo "${SSH_AGENT_PID}" > "${custom_ssh_auth_pid_file}"
         else
