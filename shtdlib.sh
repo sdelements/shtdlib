@@ -182,7 +182,7 @@ function get_local_ip_addresses {
 
 # DEPRECATED: use function `get_local_ip_addresses`
 # shellcheck disable=SC2046
-local_ip_addresses="$(get_local_ip_addresses)"
+local_ip_addresses="$(get_local_ip_addresses||true)"
 
 # Color Constants
 export black='\e[0;30m'
