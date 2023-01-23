@@ -29,7 +29,7 @@ interactive="${interactive:-true}"
 # No output, just return 0 if all of the executables are found, or 1 if some were not found.
 function whichs {
     # Bash 3.1 does not flush stdout so we use tee to make sure it gets done
-    command -v "${*}" &> /dev/null | tee /dev/null &> /dev/null
+    command -v "${*}" > /dev/null 2>&1
     return "${PIPESTATUS}"
 }
 
@@ -51,7 +51,7 @@ start_timestamp=$(date +"%Y%m%d%H%M")
 init_tty="$(tty || true)"
 
 # Check if shell supports array append syntax
-array_append_supported="$(bash -c 'a=(); a+=1 &>/dev/null && echo true || echo false')"
+array_append_supported="$(bash -c 'a=(); a+=1 > /dev/null 2>&1 && echo true || echo false')"
 
 # Exit unless syntax supports array append
 if ! "${array_append_supported}" ; then
@@ -81,7 +81,7 @@ fi
 os_type="$(uname)"
 
 # Determine virtualization platform in a way that ignores SIGPIPE, requires root
-if [ "${EUID}" == 0 ] && command -v virt-what &> /dev/null ; then
+if [ "${EUID}" == 0 ] && command -v virt-what > /dev/null 2>&1 ; then
     if [ -f '/.dockerenv' ] ; then
         virt_platform='Docker'
     else
@@ -131,13 +131,9 @@ elif [ "${os_family}" == 'Debian' ]; then
     fi
     patch_version=0
 elif [ "${os_family}" == 'Alpine' ]; then
-    # A safe way to read the version regardless of bash version and buggy
-    # implementations
-    # shellcheck disable=2207
-    command -v mapfile &> /dev/null | tee /dev/null &> /dev/null && mapfile -d. -t full_version < /etc/alpine-release &> /dev/null || full_version=($(awk -F. '{printf("%s %s %s\n", $1, $2, $3)}' /etc/alpine-release))
-    major_version="${full_version[0]}"
-    minor_version="${full_version[1]}"
-    patch_version="${full_version[2]}"
+    major_version="$(awk -F. '{print $1}'  /etc/alpine-release)"
+    minor_version="$(awk -F. '{print $2}'  /etc/alpine-release)"
+    patch_version="$(awk -F. '{print $3}'  /etc/alpine-release)"
     os_name='alpine'
 fi
 
@@ -158,30 +154,23 @@ function url_encode {
     done
 }
 
-# Filters a stream of local addresses from inet adders formatted lines
-function filter_sort_local_ip_addresses {
-        grep -v '127.' | \
-        sort -Vu | \
-        grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | \
-        grep -Eo '([0-9]*\.){3}[0-9]*'
-}
-
 # Gets local IP addresses (excluding localhost) and prints one per line
 function get_local_ip_addresses {
-    local -a all_ipv4
-    local -a local_iv4
-    if whichs ip ; then
-        ip -4 addr show | filter_sort_local_ip_addresses
-    elif whichs ifconfig ; then
-        ifconfig | filter_sort_local_ip_addresses
-    else
-        awk '/32 host/ { print "inet " f } {f=$2}' </proc/net/fib_trie | \
-            filter_sort_local_ip_addresses
-    fi
+      # Print non-loopback IPv4 addresses
+      awk '/32 host/ { print "\inet " f } {f=$2}' </proc/net/fib_trie | \
+      awk -F '[ \t]+|/' '{print $2}' | egrep -v "^127" | sort -Vu
+
+      # Print non-loopback IPv6 addresses
+      awk '{
+        for (i=1;i<=32;i=i+4)
+            if (i==1) {
+                printf substr($0,i,4);
+            } else {
+                printf ":" substr($0,i,4)
+            } printf "\n"
+        }' <<< "$(egrep -v '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
 }
 
-# DEPRECATED: use function `get_local_ip_addresses`
-# shellcheck disable=SC2046
 local_ip_addresses="$(get_local_ip_addresses||true)"
 
 # Color Constants
@@ -502,13 +491,13 @@ function readlink_m {
     elif [ "${#args[@]}" -gt 1 ] ; then
         base_path="$(dirname "${args[0]}")"
         new_path="${base_path}/${args[1]}"
-    elif whichs readlink && readlink -f "${args[0]}" &> /dev/null ; then
+    elif whichs readlink && readlink -f "${args[0]}" > /dev/null 2>&1 ; then
         readlink -f "${args[0]}"
         return 0
-    elif whichs readlink && readlink -m "${args[0]}" &> /dev/null ; then
+    elif whichs readlink && readlink -m "${args[0]}" > /dev/null 2>&1 ; then
         readlink -m "${args[0]}"
         return 0
-    elif whichs realpath && realpath -m "${args[0]}" &> /dev/null ; then
+    elif whichs realpath && realpath -m "${args[0]}" > /dev/null 2>&1 ; then
         realpath -m "${args[0]}"
         return 0
     elif whichs greadink ; then
@@ -521,9 +510,9 @@ function readlink_m {
         realpath "${args[0]}"
         return 0
     elif [ -e "${args[0]}" ] ; then
-        if stat -f "%N %Y" "${args[0]}" &> /dev/null ; then
+        if stat -f "%N %Y" "${args[0]}" > /dev/null 2>&1 ; then
             new_path="$(stat -f "%N %Y" "${args[0]}")"
-        elif stat -f "%n %N" "${args[0]}" &> /dev/null ; then
+        elif stat -f "%n %N" "${args[0]}" > /dev/null 2>&1 ; then
             new_path="$(stat --format '%n %N' "${args[0]}" | tr -d "‘’")"
         else
             color_echo red "Unable to find a usable way to determine full path (readlink_m)"
@@ -784,7 +773,7 @@ function init_nss_wrapper {
     if [ -n "${4:-}" ] ; then
         TMP_HOME_PATH="${4}"
     else
-        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}" &> /dev/null
+        TMP_HOME_PATH="$(mktemp -d -t "home.${TMP_USER}.XXXXXXXXXX")" && add_on_exit "rm -Rf '${TMP_HOME_PATH}'" && chown -R "${GUID}" "${TMP_HOME_PATH}" > /dev/null 2>&1
     fi
     export TMP_HOME_PATH
 
@@ -835,7 +824,7 @@ function enable_scl_python {
 }
 
 #Set username not available (unattended run) if passwd record exists
-if [ -z "${USER:-}" ] && whoami &> /dev/null ; then
+if [ -z "${USER:-}" ] && whoami > /dev/null 2>&1 ; then
     USER="$(whoami)"
     export USER
 fi
@@ -905,7 +894,7 @@ function get_custom_ssh_auth_agent {
     if [ -S "${custom_ssh_auth_socket_path}" ] ; then
         color_echo cyan "Found custom ssh-agent with socket: ${custom_ssh_auth_socket_path}"
         export SSH_AUTH_SOCK="${custom_ssh_auth_socket_path}"
-        if [ -f "${custom_ssh_auth_pid_file}" ] && pgrep -F "${custom_ssh_auth_pid_file}" &> /dev/null ; then
+        if [ -f "${custom_ssh_auth_pid_file}" ] && pgrep -F "${custom_ssh_auth_pid_file}" > /dev/null 2>&1 ; then
             read -r SSH_AGENT_PID < "${custom_ssh_auth_pid_file}"
             export SSH_AGENT_PID
         else
@@ -928,7 +917,7 @@ function get_custom_ssh_auth_agent {
             fi
         done
     else
-        if ! ssh-add -l &> /dev/null ; then
+        if ! ssh-add -l > /dev/null 2>&1 ; then
             color_echo green "No ssh key specified, loading default key"
             ssh-add || exit_on_fail "Unable to load ssh key into agent"
         else
@@ -944,7 +933,7 @@ function get_custom_ssh_auth_agent {
 function signal_processor {
     local signal="${1}"
     local command="${*:2}"
-    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" &> /dev/null &
+    bash -c "trap '${command}' ${signal} && while true; do sleep 1 ; done" > /dev/null 2>&1 &
     echo "${!}"
 }
 
@@ -1047,7 +1036,7 @@ function add_on_mod {
             # Remove stale pids from sub process array
             live_sub_processes=()
             for pid in "${sub_processes[@]}" ; do
-                if kill -0 "${pid}" &> /dev/null ; then
+                if kill -0 "${pid}" > /dev/null 2>&1 ; then
                     debug 10 "Contacted pid: ${pid}"
                     live_sub_processes+=("${pid}")
                 fi
@@ -1069,7 +1058,7 @@ function add_on_mod {
                             sleep "${delta}"
                         fi
                         # Watch for sibling and run when it is stopped
-                        while kill -0 "${sibling_pid}" &> /dev/null ; do
+                        while kill -0 "${sibling_pid}" > /dev/null 2>&1 ; do
                             sleep 1
                         done
                         debug 7 "Running ${arguments} to refresh after ${on_mod_max_frequency} sec timeout with pid ${$}"
@@ -1293,7 +1282,7 @@ function extract {
             dest_flag_place=''
         fi
         tmp_archive="$(mktemp)"
-        case "$(tee "${tmp_archive}" &> /dev/null && file "${tmp_archive}" --brief --mime-type)" in
+        case "$(tee "${tmp_archive}" > /dev/null 2>&1 && file "${tmp_archive}" --brief --mime-type)" in
             application/x-tar)  tar xf "${tmp_archive}" ${dest_flag_place};;
             application/x-gzip) tar zxf "${tmp_archive}" ${dest_flag_place};;
             application/pgp)    gpg -q -o - --decrypt "${tmp_archive}" | extract "${@:1}";;
@@ -2687,7 +2676,7 @@ function manage_service {
     local action="${2}"
 
     # Disable paging when using systemd
-    if command -v systemd &> /dev/null; then
+    if command -v systemd > /dev/null 2>&1; then
         export SYSTEMD_PAGER='cat'
     fi
 
@@ -2854,12 +2843,12 @@ function test_signal_process {
     debug 10 "Active sub processes are: $(pgrep -P ${$} | tr '\n' ' ')"
     signal_process "${sub_pid_1}" SIGUSR1 > /dev/null
     debug 10 "Waiting for sub processes to exit"
-    bash -c "sleep 10 && kill ${sub_pid_0} &> /dev/null" &
-    bash -c "sleep 10 && kill ${sub_pid_1} &> /dev/null" &
+    bash -c "sleep 10 && kill ${sub_pid_0} > /dev/null 2>&1" &
+    bash -c "sleep 10 && kill ${sub_pid_1} > /dev/null 2>&1" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for ${sub_pid_0}"
         # Make sure the sub process exits with 42
-        wait ${sub_pid_0} &> /dev/null || assert [ "${?}" == '42' ]
+        wait ${sub_pid_0} > /dev/null 2>&1 || assert [ "${?}" == '42' ]
         color_echo green "Sub process was signaled, responded and properly exited"
         return 0
     done
@@ -2886,13 +2875,13 @@ function test_add_on_mod {
     tmp_file_path="$(mktemp)"
     add_on_exit "rm -f ${tmp_file_path}"
     debug 10 "Using temporary file: ${tmp_file_path} to test add_on_mod"
-    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 &> /dev/null" "${tmp_file_path}" &
+    max_frequency=5 add_on_mod "signal_process ${signaler_pid} SIGUSR1 > /dev/null 2>&1" "${tmp_file_path}" &
     mod_watcher_pid="${!}"
     bash -c "sleep 2 && echo 'test message' > '${tmp_file_path}'"
-    bash -c "sleep 10 && kill ${signaler_pid} &> /dev/null" &
+    bash -c "sleep 10 && kill ${signaler_pid} > /dev/null 2>&1" &
     while pgrep -P ${$} > /dev/null ; do
         debug 10 "Waiting for PID ${signaler_pid} to exit"
-        wait "${signaler_pid}" &> /dev/null
+        wait "${signaler_pid}" > /dev/null 2>&1
         return_status="${?}"
         # Make sure the sub process exits with 42
         if [ "${return_status}" != '42' ] ; then
