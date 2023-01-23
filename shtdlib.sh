@@ -160,15 +160,17 @@ function get_local_ip_addresses {
       awk '/32 host/ { print "\inet " f } {f=$2}' </proc/net/fib_trie | \
       awk -F '[ \t]+|/' '{print $2}' | egrep -v "^127" | sort -Vu
 
-      # Print non-loopback IPv6 addresses
-      awk '{
-        for (i=1;i<=32;i=i+4)
-            if (i==1) {
-                printf substr($0,i,4);
-            } else {
-                printf ":" substr($0,i,4)
-            } printf "\n"
-        }' <<< "$(egrep -v '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
+      if [ -r "/proc/net/if_inet6" ]; then
+        # Print non-loopback IPv6 addresses
+        awk '{
+          for (i=1;i<=32;i=i+4)
+              if (i==1) {
+                  printf substr($0,i,4);
+              } else {
+                  printf ":" substr($0,i,4)
+              } printf "\n"
+          }' <<< "$(egrep -v '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
+      fi
 }
 
 local_ip_addresses="$(get_local_ip_addresses||true)"
