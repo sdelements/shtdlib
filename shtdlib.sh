@@ -158,7 +158,7 @@ function url_encode {
 function get_local_ip_addresses {
       # Print non-loopback IPv4 addresses
       awk '/32 host/ { print "\inet " f } {f=$2}' </proc/net/fib_trie | \
-      awk -F '[ \t]+|/' '{print $2}' | egrep -v "^127" | sort -Vu
+      awk -F '[ \t]+|/' '{print $2}' | grep -Ev "^127" | sort -Vu
 
       if [ -r "/proc/net/if_inet6" ]; then
         # Print non-loopback IPv6 addresses
@@ -169,7 +169,7 @@ function get_local_ip_addresses {
               } else {
                   printf ":" substr($0,i,4)
               } printf "\n"
-          }' <<< "$(egrep -v '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
+          }' <<< "$(grep -Ev '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
       fi
 }
 
