@@ -176,7 +176,7 @@ function get_local_ip_addresses {
       fi
 }
 
-local_ip_addresses="$(get_local_ip_addresses||true)"
+local_ip_addresses="$(get_local_ip_addresses)"
 
 # Color Constants
 export black='\e[0;30m'
