@@ -163,12 +163,15 @@ function get_local_ip_addresses {
       if [ -r "/proc/net/if_inet6" ]; then
         # Print non-loopback IPv6 addresses
         awk '{
-          for (i=1;i<=32;i=i+4)
-              if (i==1) {
-                  printf substr($0,i,4);
-              } else {
+          if (length($0) > 0) {
+            for (i=1;i<=32;i=i+4)
+                if (i > 1) {
                   printf ":" substr($0,i,4)
-              } printf "\n"
+                } else {
+                  printf substr($0,i,4);
+                }
+                printf "\n"
+            }
           }' <<< "$(grep -Ev '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
       fi
 }
