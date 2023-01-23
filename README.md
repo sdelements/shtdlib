@@ -6,7 +6,6 @@ Shell Standard Library
 Supported bash versions currently include the following though not all
 functions will be supported on all versions.
 
-- 3.2.57
 - 4.0.44
 - 4.1.17
 - 4.2.53
