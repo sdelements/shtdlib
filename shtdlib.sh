@@ -28,7 +28,6 @@ interactive="${interactive:-true}"
 # Create which -s alias (whichs), same as POSIX: -s
 # No output, just return 0 if all of the executables are found, or 1 if some were not found.
 function whichs {
-    # Bash 3.1 does not flush stdout so we use tee to make sure it gets done
     command -v "${*}" > /dev/null 2>&1
     return "${PIPESTATUS}"
 }
