@@ -156,24 +156,25 @@ function url_encode {
 
 # Gets local IP addresses (excluding localhost) and prints one per line
 function get_local_ip_addresses {
-      # Print non-loopback IPv4 addresses
-      awk '/32 host/ { print "\inet " f } {f=$2}' </proc/net/fib_trie | \
-      awk -F '[ \t]+|/' '{print $2}' | grep -Ev "^127" | sort -Vu
+    # Print non-loopback IPv4 addresses
+    awk '/32 host/ { print "\inet " f } {f=$2}' </proc/net/fib_trie | \
+    awk -F '[ \t]+|/' '{print $2}' | grep -Ev "^127" | sort -Vu
 
-      if [ -r "/proc/net/if_inet6" ]; then
-        # Print non-loopback IPv6 addresses
+    # Print non-loopback IPv6 addresses
+    if [ -r "/proc/net/if_inet6" ]; then
         awk '{
-          if (length($0) > 0) {
-            for (i=1;i<=32;i=i+4)
-                if (i > 1) {
-                  printf ":" substr($0,i,4)
-                } else {
-                  printf substr($0,i,4);
+            if (length($0) > 0) {
+                for (i=1;i<=32;i=i+4) {
+                    if (i > 1) {
+                        printf ":" substr($0,i,4)
+                    } else {
+                        printf substr($0,i,4);
+                    }
                 }
                 printf "\n"
             }
-          }' <<< "$(grep -Ev '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
-      fi
+        }' <<< "$(grep -Ev '(lo|fe80)' /proc/net/if_inet6 | sort -Vu)"
+    fi
 }
 
 local_ip_addresses="$(get_local_ip_addresses)"
