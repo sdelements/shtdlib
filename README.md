@@ -14,7 +14,7 @@ functions will be supported on all versions.
 - 4.4.23
 - 5.0-beta
 
-Support for bash 3.1 has bene deprecated.
+Support for bash 3.1 has been deprecated.
 
 
 ## Installation
